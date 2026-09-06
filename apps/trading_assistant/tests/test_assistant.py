@@ -1,9 +1,10 @@
 import json
 import uuid
 from datetime import timedelta
+from pathlib import Path
 from unittest.mock import patch
 
-from django.test import Client, TransactionTestCase, override_settings
+from django.test import Client, SimpleTestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
@@ -64,6 +65,15 @@ def broken_report():
 def report_payload(**changes):
     scene = {"assessment": "证据尚不充分", "supporting": ["主动买入占比 60%"], "opposing": ["尚未验证后续收益"], "condition": "等待价格与主动成交同时确认"}
     return {"stance": "wait", "summary": "当前更适合观望。", "long": scene, "short": scene, "wait": scene, "evidence_ids": ["E0"], "plan_ids": [], "follow_up": "可继续讨论候选入场价。", **changes}
+
+
+class PromptPolicyTests(SimpleTestCase):
+    def test_v2_prompt_defaults_to_a_direction_when_data_is_usable(self):
+        prompt = (Path(__file__).parents[1] / "prompts" / "v2.md").read_text()
+        self.assertIn("默认必须在 long 与 short 中选择", prompt)
+        self.assertIn("历史报告中的 wait 只代表过去时点", prompt)
+        self.assertIn("stance 表示方向倾向，不表示必须立即市价成交", prompt)
+        self.assertIn("只有以下硬条件允许 stance=wait", prompt)
 
 
 class AssistantTests(TransactionTestCase):

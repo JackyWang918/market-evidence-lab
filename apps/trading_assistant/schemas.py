@@ -21,7 +21,12 @@ class Scenario(BaseModel):
 
 class TradingReport(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    stance: Literal["long", "short", "wait"]
+    stance: Literal["long", "short", "wait"] = Field(
+        description=(
+            "本轮相对方向倾向。数据质量合格时优先 long 或 short；"
+            "wait 仅用于数据质量、时效或方案计算存在硬阻断。"
+        )
+    )
     horizon_minutes: Literal[240, 480, 1440] = Field(default=240, description="实际采用的持有周期，优先本轮用户明确指定，否则采用页面参数")
     summary: str = Field(max_length=2000, description="直接回答本轮问题；明确区分市场事实与推断")
     long: Scenario
