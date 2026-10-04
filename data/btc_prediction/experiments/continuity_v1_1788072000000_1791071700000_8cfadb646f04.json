@@ -1,0 +1,22 @@
+{
+  "rule_version": "continuity_v1",
+  "mode": "historical_replay",
+  "generated_at_utc": "2026-10-04T14:01:13.346704+00:00",
+  "original_source_file": "btcusdt_5m_10000.csv",
+  "source_file": "continuity_v1_1788072000000_1791071700000_8cfadb646f04_source.csv",
+  "source_sha256": "8cfadb646f040066f4f75e1d7173229468f54275e46a6400ce319d23d30e019d",
+  "first_candle_open_time": "1788072000000",
+  "last_candle_open_time": "1791071700000",
+  "candle_count": 10000,
+  "chain_count": 1114,
+  "prediction_count": 2292,
+  "wins": 1178,
+  "losses": 1114,
+  "pending": 0,
+  "flat_wins": 165,
+  "strict_direction_wins": 1013,
+  "strict_direction_accuracy_pct": 47.63,
+  "always_up_accuracy_pct": 53.8,
+  "always_down_accuracy_pct": 53.4,
+  "accuracy_pct": 51.4
+}

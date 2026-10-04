@@ -11,6 +11,7 @@ venv/
 # Django runtime files
 *.log
 staticfiles/
+data/btc_prediction/live/
 
 # Local environment and secrets
 .env

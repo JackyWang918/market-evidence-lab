@@ -40,8 +40,36 @@ uv run python manage.py download_btc_prediction --count 10000
 ```
 
 CSV 保留 OHLC、BTC 成交量、USDT 成交额、成交笔数与主动买入量，便于后续逐项增加
-特征。建议先以第 t 根收盘信息预测第 t+1 根收盘方向，严格按时间划分数据，并与
-多数类及上一根方向基线比较。手续费、滑点和不交易阈值应在策略回测时单独计入。
+特征。连续性实验在第 t 根收盘后预测第 t+1 根自身开盘到收盘的方向，
+只用已经收盘的 K 线。手续费与滑点应在策略回测时单独计入。
+
+第一轮连续性实验可用以下命令按时间逐根回放；页面的“查看全部预测记录”提供每次
+预测与对应 K 线的核对入口：
+
+```bash
+uv run python manage.py run_btc_continuity_experiment
+```
+
+规则 `continuity_v1` 用单根 K 线自身的 `(收盘价 / 开盘价 - 1) × 100%`，按
+`ROUND_HALF_UP` 保留到 0.01%。连续三根同方向时预测下一根同方向；显示为 0.00%
+的 K 线延续当前方向，但不能独自启动方向。预测胜利时继续预测同方向直到失败；
+失败的 K 线不计入下一轮三连，之后重新等待三根。实际 0.00% 算预测胜利。
+输出位于 `data/btc_prediction/experiments/`，包括不可变的输入 CSV 快照、
+逐条预测 CSV 与带输入 SHA-256 的汇总 JSON；文件名包含样本范围和输入哈希，
+重跑新样本不会覆盖旧实验。这是历史回放，不是当时实时下单记录。
+
+实时前向实验使用同一方向规则，直接读取 Binance USD-M 5 分钟 K 线。采集进程需
+常驻；每次预测先写入 `data/btc_prediction/live/continuity_live_v1.json` 并记录
+发出时间，目标 K 线收盘后再补写实际 OHLC、胜败和结算时间。页面的“实时前向记录”
+提供逐条核对。已有 `SOURCE_PROXY_URL` 时默认沿用它，也可以用
+`BTC_PREDICTION_PROXY_URL` 单独指定。数据延迟超过目标 K 开盘后 60 秒时不补发
+历史预测，避免事后预测冒充实时记录。
+
+```bash
+uv run python manage.py run_btc_continuity_live
+# 单次采集和结算检查
+uv run python manage.py run_btc_continuity_live --once
+```
 
 - 首页：<http://127.0.0.1:8001/>
 - 自动调度：<http://127.0.0.1:8001/system/schedules/>
