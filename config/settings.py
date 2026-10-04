@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "apps.core.apps.CoreConfig",
     "apps.market_data.apps.MarketDataConfig",
+    "apps.btc_prediction.apps.BtcPredictionConfig",
     "apps.microstructure.apps.MicrostructureConfig",
     "apps.trading_assistant.apps.TradingAssistantConfig",
     "apps.market_funds.apps.MarketFundsConfig",

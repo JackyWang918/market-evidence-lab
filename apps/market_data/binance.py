@@ -13,7 +13,8 @@ from django.utils import timezone
 from apps.collection.source_network import source_proxy_url
 
 
-SUPPORTED_SYMBOL = "ETHUSDT"
+SUPPORTED_SYMBOL = "ETHUSDT"  # Legacy ETH collection callers use this constant.
+SUPPORTED_SYMBOLS = {SUPPORTED_SYMBOL, "BTCUSDT"}
 SUPPORTED_INTERVALS = {"1d", "1h", "5m"}
 INTERVAL_MILLISECONDS = {
     "1d": 86_400_000,
@@ -178,7 +179,7 @@ class BinanceKlineClient:
         range_start: datetime,
         range_end: datetime,
     ) -> Iterator[list[KlinePayload]]:
-        if symbol != SUPPORTED_SYMBOL:
+        if symbol not in SUPPORTED_SYMBOLS:
             raise ValueError(f"Unsupported symbol: {symbol}")
         if interval not in SUPPORTED_INTERVALS:
             raise ValueError(f"Unsupported interval: {interval}")

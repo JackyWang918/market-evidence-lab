@@ -28,6 +28,21 @@ Market Evidence Lab 是一个聚焦 ETHUSDT 市场数据与新闻事件观察的
 
 ## 页面
 
+BTC 涨跌实验：<http://127.0.0.1:8001/btc-prediction/>。这是独立的 Django 应用，
+第一阶段固定研究 Binance USD-M 永续 BTCUSDT 的 5 分钟已收盘 K 线。
+下面的命令下载截至前一个完整 UTC 日期结束的最近 10,000 根，逐日核对官方
+SHA-256 校验文件，再检查数量、连续性和 OHLC，保存到
+`data/btc_prediction/btcusdt_5m_10000.csv`。页面直接读取该 CSV；数据库迁移
+未完成时也能展示已下载数据。
+
+```bash
+uv run python manage.py download_btc_prediction --count 10000
+```
+
+CSV 保留 OHLC、BTC 成交量、USDT 成交额、成交笔数与主动买入量，便于后续逐项增加
+特征。建议先以第 t 根收盘信息预测第 t+1 根收盘方向，严格按时间划分数据，并与
+多数类及上一根方向基线比较。手续费、滑点和不交易阈值应在策略回测时单独计入。
+
 - 首页：<http://127.0.0.1:8001/>
 - 自动调度：<http://127.0.0.1:8001/system/schedules/>
 - 调度情况：<http://127.0.0.1:8001/system/schedules/runs/>
