@@ -1,5 +1,8 @@
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 import httpx
@@ -8,6 +11,7 @@ from django.urls import reverse
 
 from apps.daily_mover_monitor.detector import Candle, detect
 from apps.daily_mover_monitor.models import DailyMoverEntry, DailyMoverSnapshot
+from apps.daily_mover_monitor.preview import import_preview
 from apps.daily_mover_monitor.service import scan
 from apps.daily_mover_monitor.source import FuturesMarketClient
 from apps.market_data.binance import BinanceKlineClient
@@ -142,3 +146,37 @@ class SnapshotTests(TestCase):
     def test_scan_rejects_unclosed_day(self):
         with self.assertRaisesRegex(ValueError, "08:20"):
             scan(DAY, client=FakeSource(), now=datetime(2026, 10, 12, 0, 10, tzinfo=UTC))
+
+    @patch("apps.daily_mover_monitor.views.today_in_shanghai", return_value=DAY)
+    def test_historical_preview_is_visible_without_official_snapshots(self, _):
+        row = {
+            "symbol": "FIVEUSDT", "quote_asset": "USDT", "signal": "5D+7D",
+            "close": "20", "rise_pct": "120", "drawdown_pct": "4.5",
+            "change_8d_pct": "80", "low_at": "2026-10-04", "low_price": "9",
+            "high_at": "2026-10-09", "high_price": "22", "preview_rank": 1,
+            "current_bid_depth": "20000", "current_ask_depth": "22000",
+            "current_spread_bps": "5", "current_depth_pass": True,
+        }
+        payload = {
+            "symbol_count": 563,
+            "scan_completed_at_utc": "2026-10-11T17:27:00+00:00",
+            "price_candidates": {"2026-10-10": [row], "2026-10-11": [row]},
+            "provisional_rankings": {"2026-10-10": [row], "2026-10-11": [row]},
+            "candles": {"2026-10-11": {"FIVEUSDT": [{"time": "2026-10-10", "open": "19", "high": "22", "low": "18", "close": "20"}]}},
+        }
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "preview.json"
+            path.write_text(json.dumps(payload))
+            import_preview(path)
+
+        board = self.client.get(reverse("daily_mover_monitor:index"))
+        self.assertEqual(board.context["selected_day"], date(2026, 10, 11))
+        self.assertContains(board, "FIVEUSDT")
+        self.assertContains(board, "历史试算 · 非正式快照")
+        self.assertContains(board, "盘口取自 2026-10-12 01:27 北京时间")
+        self.assertEqual(board.context["entries"][0].consecutive_days, 2)
+        history = self.client.get(reverse("daily_mover_monitor:history"), {"date": "2026-10-10"})
+        self.assertContains(history, "FIVEUSDT")
+        detail = self.client.get(reverse("daily_mover_monitor:detail", args=["FIVEUSDT"]), {"date": "2026-10-11"})
+        self.assertContains(detail, "2026-10-10")
+        self.assertContains(detail, "历史试算 · 非正式快照")

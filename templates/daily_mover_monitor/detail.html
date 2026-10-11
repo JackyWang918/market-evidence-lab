@@ -4,7 +4,8 @@
 {% block extra_css %}<link rel="stylesheet" href="{% static 'daily_mover_monitor/dashboard.css' %}">{% endblock %}
 {% block content %}<div class="dm-page">
     <a class="dm-back" href="{% url 'daily_mover_monitor:index' %}?date={{ entry.snapshot.as_of_date|date:'Y-m-d' }}">← 返回 {{ entry.snapshot.as_of_date|date:'Y-m-d' }} 榜单</a>
-    <div class="dm-heading"><div><p class="eyebrow">#{{ entry.rank }} · {{ entry.signal }}</p><h1>{{ entry.symbol }}</h1><p>{{ entry.quote_asset }} 本位永续 · {{ entry.snapshot.as_of_date|date:"Y-m-d" }} 日榜快照</p></div></div>
+    <div class="dm-heading"><div><p class="eyebrow">#{{ entry.rank }} · {{ entry.signal }}</p><h1>{{ entry.symbol }}</h1><p>{{ entry.quote_asset }} 本位永续 · {{ entry.snapshot.as_of_date|date:"Y-m-d" }} {% if entry.snapshot.preview %}历史试算{% else %}日榜快照{% endif %}</p></div></div>
+    {% if entry.snapshot.preview %}<div class="dm-preview-note" role="status"><strong>历史试算 · 非正式快照</strong><span>价格为历史日 K；盘口与名次按本次试算时的当前深度计算。</span></div>{% endif %}
     <div class="dm-summary dm-detail-summary">
         <div><span>区间涨幅</span><strong>+{{ entry.rise_pct|floatformat:2 }}%</strong></div>
         <div><span>距高点回撤</span><strong>{{ entry.drawdown_pct|floatformat:2 }}%</strong></div>

@@ -7,14 +7,11 @@
     {% for day in recent_days %}<a class="{% if day == selected_day %}is-active{% endif %}" href="{% url 'daily_mover_monitor:index' %}?date={{ day|date:'Y-m-d' }}"{% if day == selected_day %} aria-current="date"{% endif %}><span class="dm-tab-full">{{ day|date:'m月d日' }}</span><span class="dm-tab-short">{{ day|date:'m/d' }}</span></a>{% endfor %}
 </nav>
 {% endif %}
-<div class="dm-summary">
-    <div><span>榜单日期</span><strong>{{ selected_day|date:"Y-m-d" }}</strong></div>
-    <div><span>入榜</span><strong>{{ entries|length }} / 30</strong></div>
-    <div><span>扫描合约</span><strong>{% if snapshot %}{{ snapshot.scanned_count }}{% else %}—{% endif %}</strong></div>
-    <div><span>价格候选</span><strong>{% if snapshot %}{{ snapshot.candidate_count }}{% else %}—{% endif %}</strong></div>
+<div class="dm-status-strip" aria-label="榜单概况">
+    <div class="dm-status-date"><span>榜单</span><strong>{{ selected_day|date:"Y-m-d" }}</strong>{% if snapshot.preview %}<span class="dm-preview-tag" role="status" title="历史日 K 试算；盘口取自 {{ preview_checked_at|date:'Y-m-d H:i' }} 北京时间，不能代表历史当日盘口。">历史试算 · 非正式快照</span>{% endif %}</div>
+    <div class="dm-status-stats"><span>入榜 <strong>{{ entries|length }} / 30</strong></span><span>扫描 <strong>{% if snapshot %}{{ snapshot.scanned_count }}{% else %}—{% endif %}</strong></span><span>候选 <strong>{% if snapshot %}{{ snapshot.candidate_count }}{% else %}—{% endif %}</strong></span></div>
 </div>
 {% if snapshot %}
-<p class="dm-meta">日 K：{{ snapshot.candle_open_at|date:"Y-m-d" }} UTC · 快照生成：{{ snapshot.created_at|date:"Y-m-d H:i" }} 北京时间 · 因盘口深度或价差排除 {{ snapshot.excluded_depth_count }} 个</p>
 <div class="dm-table-wrap"><table class="dm-table">
     <thead><tr><th>排名</th><th>合约</th><th>信号</th><th>距高点回撤</th><th>区间涨幅</th><th>较 8 天前</th><th>收盘价</th><th>连续入榜</th><th>排名变化</th></tr></thead>
     <tbody>{% for entry in entries %}<tr>
@@ -30,25 +27,21 @@
     </tr>{% empty %}<tr><td colspan="9" class="dm-empty">今日没有合约满足全部条件。</td></tr>{% endfor %}</tbody>
 </table></div>
 <ol class="dm-mobile-list" aria-label="合约异动前 30 榜单">
-    {% for entry in entries %}<li class="dm-mobile-card">
-        <div class="dm-card-head">
-            <span class="dm-card-rank">{{ entry.rank|stringformat:"02d" }}</span>
-            <div class="dm-card-symbol"><a href="{% url 'daily_mover_monitor:detail' entry.symbol %}?date={{ selected_day|date:'Y-m-d' }}">{{ entry.symbol }} <span aria-hidden="true">↗</span></a><small>{{ entry.quote_asset }} 永续</small></div>
+    {% for entry in entries %}<li class="dm-mobile-row">
+        <div class="dm-row-head">
+            <span class="dm-row-rank">{{ entry.rank|stringformat:"02d" }}</span>
+            <div class="dm-row-symbol"><a href="{% url 'daily_mover_monitor:detail' entry.symbol %}?date={{ selected_day|date:'Y-m-d' }}">{{ entry.symbol }} <span aria-hidden="true">↗</span></a><small>{{ entry.quote_asset }} 永续</small></div>
             <span class="dm-signal">{{ entry.signal }}</span>
         </div>
-        <div class="dm-card-primary">
-            <div><span>距高点回撤</span><strong>{{ entry.drawdown_pct|floatformat:2 }}%</strong></div>
-            <div><span>区间涨幅</span><strong class="dm-positive">+{{ entry.rise_pct|floatformat:1 }}%</strong></div>
-        </div>
-        <dl class="dm-card-facts">
+        <dl class="dm-row-metrics">
+            <div><dt>距高点回撤</dt><dd>{{ entry.drawdown_pct|floatformat:2 }}%</dd></div>
+            <div><dt>区间涨幅</dt><dd class="dm-positive">+{{ entry.rise_pct|floatformat:1 }}%</dd></div>
             <div><dt>较 8 天前</dt><dd class="dm-positive">+{{ entry.change_8d_pct|floatformat:1 }}%</dd></div>
-            <div><dt>收盘价</dt><dd>{{ entry.close|floatformat:8 }}</dd></div>
-            <div><dt>连续入榜</dt><dd>{{ entry.consecutive_days }} 天</dd></div>
-            <div><dt>排名变化</dt><dd>{% if entry.previous_rank %}{% if entry.rank_change > 0 %}<span class="dm-positive">↑ {{ entry.rank_change }} 位</span>{% elif entry.rank_change < 0 %}<span class="dm-negative">↓ {{ entry.rank_change_magnitude }} 位</span>{% else %}持平{% endif %}{% else %}新入榜{% endif %}</dd></div>
         </dl>
+        <div class="dm-row-foot"><span>收盘 {{ entry.close|floatformat:8 }}</span><span>连续 {{ entry.consecutive_days }} 天</span><span>{% if entry.previous_rank %}{% if entry.rank_change > 0 %}<span class="dm-positive">↑ {{ entry.rank_change }} 位</span>{% elif entry.rank_change < 0 %}<span class="dm-negative">↓ {{ entry.rank_change_magnitude }} 位</span>{% else %}排名持平{% endif %}{% else %}新入榜{% endif %}</span></div>
     </li>{% empty %}<li class="dm-mobile-empty">今日没有合约满足全部条件。</li>{% endfor %}
 </ol>
 {% else %}
 <div class="dm-empty-panel"><strong>该日尚无榜单快照</strong><p>请在北京时间 08:20 后查看；调度执行器离线或扫描失败时也不会生成不完整榜单。</p>{% if latest_snapshot %}<a href="{% url 'daily_mover_monitor:index' %}?date={{ latest_snapshot.as_of_date|date:'Y-m-d' }}">查看最近一次完整榜单</a>{% endif %}</div>
 {% endif %}
-<p class="dm-method">口径：最近 5 / 7 根完整日 K，区间最低价须出现在最高价之前且涨幅 ≥100%；收盘价较 8 天前 ≥50%，自低点以来距最高价回撤 ≤30%。盘口取最优价上下 1% 内双侧挂单，单侧至少 {{ min_depth }}，价差不超过 {{ max_spread }} bps。先排含 5D 信号，再按回撤升序。盘口仅为当时快照。</p>
+<p class="dm-method">口径：最近 5 / 7 根完整日 K，区间最低价须出现在最高价之前且涨幅 ≥100%；收盘价较 8 天前 ≥50%，自低点以来距最高价回撤 ≤30%。盘口取最优价上下 1% 内双侧挂单，单侧至少 {{ min_depth }}，价差不超过 {{ max_spread }} bps。先排含 5D 信号，再按回撤升序。{% if snapshot.preview %}试算盘口为扫描时现值。{% else %}盘口仅为当时快照。{% endif %}</p>

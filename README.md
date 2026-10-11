@@ -126,6 +126,15 @@ uv run --env-file .env python manage.py scan_daily_movers
 不会随之后的行情修订而改变；历史从本功能上线后开始积累，因为过去的盘口
 状态无法从当前盘口接口还原。
 
+若需要查看历史试算，可将带有 `provisional_rankings` 的预览 JSON 单独导入：
+
+```bash
+uv run --env-file .env python manage.py import_daily_mover_preview data/daily_movers/preview_2026-10-07_to_2026-10-11.json
+```
+
+看板会把这类结果明确标为「历史试算」，在正式快照缺席时展示最近一次试算。
+试算使用历史日 K 和导入文件记录的现时盘口，不会写入或覆盖正式每日快照。
+
 Binance 公告与 BLS RSS 默认显式直连，不使用系统环境代理。若当前网络无法访问，可在 `.env` 配置本地代理：
 
 ```dotenv

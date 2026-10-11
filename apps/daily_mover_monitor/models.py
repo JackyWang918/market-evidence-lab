@@ -43,6 +43,19 @@ class DailyMoverRun(models.Model):
         ordering = ["-as_of_date"]
 
 
+class DailyMoverPreviewReport(models.Model):
+    """Labeled historical trial; deliberately separate from daily snapshots."""
+
+    period_start = models.DateField()
+    period_end = models.DateField(unique=True)
+    depth_checked_at = models.DateTimeField()
+    payload = models.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-period_end"]
+
+
 class DailyMoverSnapshot(models.Model):
     objects = ImmutableManager()
     as_of_date = models.DateField(unique=True)
