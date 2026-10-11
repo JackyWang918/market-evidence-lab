@@ -36,8 +36,6 @@ def window_signal(candles: Sequence[Candle], days: int) -> Signal | None:
         return None
     peak = max(row.high for row in rows[low_index:])
     drawdown = (peak - rows[-1].close) / peak * 100
-    if drawdown > 30:
-        return None
     return Signal(
         window=days,
         low_index=len(candles) - days + low_index,
@@ -55,7 +53,7 @@ def detect(candles: Sequence[Candle]) -> tuple[str, Signal, Decimal] | None:
     if any(candles[index + 1].open_at.date().toordinal() - candles[index].open_at.date().toordinal() != 1 for index in range(8)):
         return None
     change_8d = (candles[-1].close - candles[0].close) / candles[0].close * 100
-    if change_8d < 50:
+    if change_8d < 30:
         return None
     five = window_signal(candles, 5)
     seven = window_signal(candles, 7)

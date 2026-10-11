@@ -109,6 +109,7 @@ uv run --env-file .env python manage.py run_scheduler
 
 `/daily-movers/` 是币安 U 本位永续合约日线异动榜。默认扫描交易中的 USDT、USDC
 计价永续合约；统一的前 30 榜单先排含 5D 信号的合约，组内按距高点回撤升序。
+首页提供最近 8 日 Tab，截止昨天；更早日期在历史页选择。
 每天北京时间 08:20 后，统一调度器扫描上一根完整 UTC 日 K。首次启动调度器若
 已过 08:20 且当天尚无快照，会补跑当天；临时故障每 5 分钟重试。手工扫描使用：
 
@@ -117,9 +118,10 @@ uv run --env-file .env python manage.py scan_daily_movers
 ```
 
 规则使用最近 5 / 7 根完整日 K 的区间最低价和最高价，要求低点所在 K 早于
-高点所在 K，涨幅至少 100%；最新收盘价比 8 天前收盘价至少高 50%，相对从
-区间低点以来的最高价回撤不超过 30%。每个信号分别校验回撤，双信号显示为
-`5D+7D`。盘口只在价格候选币中检查，默认最优价上下 1% 范围内的买卖盘
+高点所在 K，涨幅至少 100%；最新收盘价比 8 天前收盘价至少高 30%。
+距区间低点以来最高价的回撤只展示并参与排序，超过 30% 会标记为高回撤，
+不会因此排除。双信号显示为 `5D+7D`。盘口只在价格候选币中检查，
+默认最优价上下 1% 范围内的买卖盘
 各至少 10,000 计价币且价差不超过 50 bps；不按成交额过滤。
 门槛可通过 `DAILY_MOVER_MIN_SIDE_DEPTH`、`DAILY_MOVER_MAX_SPREAD_BPS`
 以及 `DAILY_MOVER_QUOTE_ASSETS` 配置。已发布的每日榜单、排名及详情 K 线
@@ -129,11 +131,14 @@ uv run --env-file .env python manage.py scan_daily_movers
 若需要查看历史试算，可将带有 `provisional_rankings` 的预览 JSON 单独导入：
 
 ```bash
-uv run --env-file .env python manage.py import_daily_mover_preview data/daily_movers/preview_2026-10-07_to_2026-10-11.json
+uv run --env-file .env python manage.py import_daily_mover_preview data/daily_movers/preview_2026-09-12_to_2026-10-11.json
 ```
 
 看板会把这类结果明确标为「历史试算」，在正式快照缺席时展示最近一次试算。
 试算使用历史日 K 和导入文件记录的现时盘口，不会写入或覆盖正式每日快照。
+连榜天数按相邻榜单日期累计，跨越首页 8 日 Tab 和不同试算文件；正式快照与
+历史试算各自计算。若连续记录延伸到最早可用日期，页面显示「至少连榜 N 天」，
+不将缺少前日数据误标为新入榜。
 
 Binance 公告与 BLS RSS 默认显式直连，不使用系统环境代理。若当前网络无法访问，可在 `.env` 配置本地代理：
 

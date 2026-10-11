@@ -8,9 +8,9 @@
     {% if entry.snapshot.preview %}<div class="dm-preview-note" role="status"><strong>历史试算 · 非正式快照</strong><span>价格为历史日 K；盘口与名次按本次试算时的当前深度计算。</span></div>{% endif %}
     <div class="dm-summary dm-detail-summary">
         <div><span>区间涨幅</span><strong>+{{ entry.rise_pct|floatformat:2 }}%</strong></div>
-        <div><span>距高点回撤</span><strong>{{ entry.drawdown_pct|floatformat:2 }}%</strong></div>
+        <div><span>距高点回撤</span><strong>{{ entry.drawdown_pct|floatformat:2 }}%{% if entry.drawdown_pct > 30 %}<span class="dm-drawdown-alert">高回撤</span>{% endif %}</strong></div>
         <div><span>较 8 天前</span><strong>+{{ entry.change_8d_pct|floatformat:2 }}%</strong></div>
-        <div><span>连续入榜</span><strong>{{ entry.consecutive_days }} 天</strong></div>
+        <div><span>连续入榜</span><strong>{% if entry.streak_open_start %}至少 {% endif %}{{ entry.consecutive_days }} 天</strong></div>
     </div>
     <section class="dm-panel"><div class="dm-section-head"><div><span class="eyebrow">DAILY CANDLES</span><h2>日 K 与翻倍区间</h2></div><span>UTC 日期 · 仅展示计算使用的 9 根完整日 K</span></div>
         <canvas id="dm-candles" height="360" role="img" aria-label="{{ entry.symbol }} 九日日 K，标出区间低点与高点"></canvas>
@@ -25,7 +25,7 @@
             <div><dt>买盘 / 卖盘 1% 深度</dt><dd>{{ entry.bid_depth|floatformat:0 }} / {{ entry.ask_depth|floatformat:0 }} {{ entry.quote_asset }}</dd></div>
             <div><dt>买卖价差</dt><dd>{{ entry.spread_bps|floatformat:2 }} bps</dd></div>
         </dl></section>
-        <section class="dm-panel"><div class="dm-section-head"><h2>排名变化</h2></div><p class="dm-meta">昨日排名：{% if entry.previous_rank %}#{{ entry.previous_rank }}{% else %}未入榜{% endif %}</p>
+        <section class="dm-panel"><div class="dm-section-head"><h2>排名变化</h2></div><p class="dm-meta">昨日排名：{% if entry.previous_rank %}#{{ entry.previous_rank }}{% elif entry.previous_day_unknown %}前日无数据{% else %}未入榜{% endif %}</p>
             <div class="dm-history-list">{% for item in history_rows %}<a href="{% url 'daily_mover_monitor:detail' entry.symbol %}?date={{ item.snapshot.as_of_date|date:'Y-m-d' }}"><time>{{ item.snapshot.as_of_date|date:"Y-m-d" }}</time><strong>#{{ item.rank }}</strong><span>{{ item.signal }}</span></a>{% endfor %}</div>
         </section>
     </div>

@@ -34,35 +34,41 @@ def import_preview(path: Path) -> DailyMoverPreviewReport:
 
 
 def preview_rows() -> tuple[dict[date, list[SimpleNamespace]], DailyMoverPreviewReport | None]:
-    report = DailyMoverPreviewReport.objects.first()
-    if report is None:
+    reports = list(DailyMoverPreviewReport.objects.order_by("depth_checked_at", "pk"))
+    if not reports:
         return {}, None
-    payload = report.payload
-    ranked = payload.get("provisional_rankings", {})
-    candidates = payload.get("price_candidates", {})
-    chart_rows = payload.get("candles", {})
+    daily_data = {}
+    for report in reports:
+        payload = report.payload
+        for key, ranked_rows in payload.get("provisional_rankings", {}).items():
+            daily_data[date.fromisoformat(key)] = (
+                report,
+                payload,
+                ranked_rows,
+                payload.get("price_candidates", {}).get(key, []),
+                payload.get("candles", {}).get(key, {}),
+            )
     by_day: dict[date, list[SimpleNamespace]] = {}
-    for key in sorted(ranked):
-        day = date.fromisoformat(key)
+    for day in sorted(daily_data):
+        report, payload, ranked_rows, candidates, chart_rows = daily_data[day]
+        prior_rows = by_day.get(day - timedelta(days=1))
+        prior_by_symbol = {row.symbol: row for row in prior_rows} if prior_rows is not None else {}
         snapshot = SimpleNamespace(
             preview=True,
             as_of_date=day,
             candle_open_at=datetime.combine(day - timedelta(days=1), time.min, UTC),
             created_at=report.depth_checked_at,
             scanned_count=payload.get("symbol_count", 0),
-            candidate_count=len(candidates.get(key, [])),
+            candidate_count=len(candidates),
             excluded_depth_count=sum(
                 not row.get("current_depth_pass", False)
-                for row in candidates.get(key, [])
+                for row in candidates
             ),
         )
         rows = []
-        for item in ranked[key]:
+        for item in ranked_rows:
             symbol = str(item["symbol"])
-            prior = next(
-                (row for row in by_day.get(day - timedelta(days=1), []) if row.symbol == symbol),
-                None,
-            )
+            prior = prior_by_symbol.get(symbol)
             previous_rank = prior.rank if prior else None
             rank = int(item["preview_rank"])
             change = previous_rank - rank if previous_rank is not None else None
@@ -87,7 +93,9 @@ def preview_rows() -> tuple[dict[date, list[SimpleNamespace]], DailyMoverPreview
                 rank_change=change,
                 rank_change_magnitude=abs(change) if change is not None else None,
                 consecutive_days=(prior.consecutive_days + 1) if prior else 1,
-                candles=chart_rows.get(key, {}).get(symbol, []),
+                streak_open_start=prior.streak_open_start if prior else prior_rows is None,
+                previous_day_unknown=prior_rows is None,
+                candles=chart_rows.get(symbol, []),
             ))
         by_day[day] = rows
-    return by_day, report
+    return by_day, reports[-1]

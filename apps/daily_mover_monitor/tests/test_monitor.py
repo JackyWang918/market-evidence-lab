@@ -60,8 +60,28 @@ class DetectorTests(SimpleTestCase):
         ))
         self.assertIsNone(detect(rows))
 
+    def test_eight_day_change_accepts_30_percent_boundary(self):
+        rows = candles("five")
+        rows[6] = Candle(rows[6].open_at, Decimal(10), Decimal(18), Decimal(10), Decimal(13))
+        rows[7] = Candle(rows[7].open_at, Decimal(13), Decimal(17), Decimal(12), Decimal(13))
+        rows[8] = Candle(rows[8].open_at, Decimal(13), Decimal(17), Decimal(12), Decimal(13))
+        self.assertEqual(detect(rows)[2], Decimal(30))
+        rows[8] = Candle(rows[8].open_at, Decimal(13), Decimal(17), Decimal(12), Decimal("12.99"))
+        self.assertIsNone(detect(rows))
+
+    def test_high_drawdown_is_reported_without_excluding_signal(self):
+        rows = candles("five")
+        rows[-1] = Candle(rows[-1].open_at, Decimal(20), Decimal(21), Decimal(13), Decimal(14))
+        signal_name, signal, change = detect(rows)
+        self.assertEqual(signal_name, "5D+7D")
+        self.assertEqual(change, Decimal(40))
+        self.assertGreater(signal.drawdown_pct, 30)
+
 
 class SourceTests(SimpleTestCase):
+    def test_detail_url_supports_non_ascii_binance_symbol(self):
+        self.assertIn("%E7%89%9B", reverse("daily_mover_monitor:detail", args=["牛来USDT"]))
+
     def test_discovers_perpetuals_and_measures_book_without_turnover(self):
         def respond(request):
             if request.url.path.endswith("exchangeInfo"):
@@ -127,6 +147,7 @@ class SnapshotTests(TestCase):
 
         board = self.client.get(reverse("daily_mover_monitor:index"), {"date": DAY.isoformat()})
         self.assertContains(board, "FIVEUSDT")
+        self.assertContains(board, "前日无数据")
         self.assertContains(board, 'class="dm-mobile-list"')
         self.assertContains(board, 'class="dm-tab-short"')
         detail = self.client.get(reverse("daily_mover_monitor:detail", args=["FIVEUSDT"]), {"date": DAY.isoformat()})
@@ -138,10 +159,24 @@ class SnapshotTests(TestCase):
     def test_dashboard_has_empty_state(self, _):
         response = self.client.get(reverse("daily_mover_monitor:index"))
         self.assertContains(response, "该日尚无榜单快照")
+        self.assertEqual(response.context["selected_day"], DAY - timedelta(days=1))
         self.assertEqual(
             response.context["recent_days"],
-            [DAY - timedelta(days=index) for index in range(4, -1, -1)],
+            [DAY - timedelta(days=index) for index in range(8, 0, -1)],
         )
+
+    @patch("apps.daily_mover_monitor.views.today_in_shanghai", return_value=DAY)
+    def test_homepage_omits_today_even_when_scan_exists(self, _):
+        DailyMoverSnapshot.objects.create(
+            as_of_date=DAY,
+            candle_open_at=datetime(2026, 10, 11, tzinfo=UTC),
+            scanned_count=1,
+            candidate_count=0,
+            excluded_depth_count=0,
+        )
+        response = self.client.get(reverse("daily_mover_monitor:index"))
+        self.assertEqual(response.context["selected_day"], DAY - timedelta(days=1))
+        self.assertNotIn(DAY, response.context["recent_days"])
 
     def test_scan_rejects_unclosed_day(self):
         with self.assertRaisesRegex(ValueError, "08:20"):
@@ -151,32 +186,36 @@ class SnapshotTests(TestCase):
     def test_historical_preview_is_visible_without_official_snapshots(self, _):
         row = {
             "symbol": "FIVEUSDT", "quote_asset": "USDT", "signal": "5D+7D",
-            "close": "20", "rise_pct": "120", "drawdown_pct": "4.5",
+            "close": "20", "rise_pct": "120", "drawdown_pct": "40",
             "change_8d_pct": "80", "low_at": "2026-10-04", "low_price": "9",
             "high_at": "2026-10-09", "high_price": "22", "preview_rank": 1,
             "current_bid_depth": "20000", "current_ask_depth": "22000",
             "current_spread_bps": "5", "current_depth_pass": True,
         }
-        payload = {
-            "symbol_count": 563,
-            "scan_completed_at_utc": "2026-10-11T17:27:00+00:00",
-            "price_candidates": {"2026-10-10": [row], "2026-10-11": [row]},
-            "provisional_rankings": {"2026-10-10": [row], "2026-10-11": [row]},
-            "candles": {"2026-10-11": {"FIVEUSDT": [{"time": "2026-10-10", "open": "19", "high": "22", "low": "18", "close": "20"}]}},
-        }
         with TemporaryDirectory() as directory:
-            path = Path(directory) / "preview.json"
-            path.write_text(json.dumps(payload))
-            import_preview(path)
+            for day in ("2026-10-10", "2026-10-11"):
+                payload = {
+                    "symbol_count": 563,
+                    "scan_completed_at_utc": "2026-10-11T17:27:00+00:00",
+                    "price_candidates": {day: [row]},
+                    "provisional_rankings": {day: [row]},
+                    "candles": {day: {"FIVEUSDT": [{"time": "2026-10-10", "open": "19", "high": "22", "low": "18", "close": "20"}]}},
+                }
+                path = Path(directory) / f"{day}.json"
+                path.write_text(json.dumps(payload))
+                import_preview(path)
 
         board = self.client.get(reverse("daily_mover_monitor:index"))
         self.assertEqual(board.context["selected_day"], date(2026, 10, 11))
         self.assertContains(board, "FIVEUSDT")
         self.assertContains(board, "历史试算 · 非正式快照")
         self.assertContains(board, "盘口取自 2026-10-12 01:27 北京时间")
+        self.assertContains(board, "至少连榜 2 天")
+        self.assertContains(board, "高回撤")
         self.assertEqual(board.context["entries"][0].consecutive_days, 2)
         history = self.client.get(reverse("daily_mover_monitor:history"), {"date": "2026-10-10"})
         self.assertContains(history, "FIVEUSDT")
+        self.assertContains(history, "前日无数据")
         detail = self.client.get(reverse("daily_mover_monitor:detail", args=["FIVEUSDT"]), {"date": "2026-10-11"})
         self.assertContains(detail, "2026-10-10")
         self.assertContains(detail, "历史试算 · 非正式快照")

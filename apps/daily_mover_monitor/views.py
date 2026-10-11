@@ -20,12 +20,29 @@ def _parse_day(value: str | None) -> date | None:
         return None
 
 
+def _mark_official_streak_boundaries(entries, day: date):
+    if not entries:
+        return
+    needed_days = {
+        day - timedelta(days=offset)
+        for entry in entries
+        for offset in (1, entry.consecutive_days)
+    }
+    known_days = set(DailyMoverSnapshot.objects.filter(
+        as_of_date__in=needed_days
+    ).values_list("as_of_date", flat=True))
+    for entry in entries:
+        entry.previous_day_unknown = day - timedelta(days=1) not in known_days
+        entry.streak_open_start = day - timedelta(days=entry.consecutive_days) not in known_days
+
+
 def _board_context(day: date, preview_data=None):
     preview_data = preview_data if preview_data is not None else preview_rows()
-    preview_by_day, preview_report = preview_data
+    preview_by_day, _ = preview_data
     snapshot = DailyMoverSnapshot.objects.filter(as_of_date=day).first()
     if snapshot:
         entries = list(snapshot.entries.all())
+        _mark_official_streak_boundaries(entries, day)
     else:
         entries = preview_by_day.get(day, [])
         snapshot = entries[0].snapshot if entries else None
@@ -33,8 +50,8 @@ def _board_context(day: date, preview_data=None):
         "selected_day": day,
         "snapshot": snapshot,
         "entries": entries,
-        "preview_checked_at": preview_report.depth_checked_at if snapshot and getattr(snapshot, "preview", False) else None,
-        "recent_days": [today_in_shanghai() - timedelta(days=index) for index in range(4, -1, -1)],
+        "preview_checked_at": snapshot.created_at if snapshot and getattr(snapshot, "preview", False) else None,
+        "recent_days": [today_in_shanghai() - timedelta(days=index) for index in range(8, 0, -1)],
         "latest_snapshot": DailyMoverSnapshot.objects.first(),
         "min_depth": settings.DAILY_MOVER_MIN_SIDE_DEPTH,
         "max_spread": settings.DAILY_MOVER_MAX_SPREAD_BPS,
@@ -46,13 +63,12 @@ def index(request):
     preview_data = preview_rows()
     requested = _parse_day(request.GET.get("date"))
     today = today_in_shanghai()
-    latest_preview_day = max(preview_data[0], default=None)
-    day = requested or (
-        today if DailyMoverSnapshot.objects.filter(as_of_date=today).exists()
-        else latest_preview_day or today
+    yesterday = today - timedelta(days=1)
+    available_days = {preview_day for preview_day in preview_data[0] if preview_day <= yesterday} | set(
+        DailyMoverSnapshot.objects.filter(as_of_date__lte=yesterday).values_list("as_of_date", flat=True)
     )
+    day = requested or (yesterday if yesterday in available_days else max(available_days, default=yesterday))
     context = _board_context(day, preview_data)
-    context["showing_latest_preview"] = requested is None and day != today
     return render(request, "daily_mover_monitor/index.html", context)
 
 
@@ -75,6 +91,7 @@ def detail(request, symbol: str):
         snapshot__as_of_date=day, symbol=symbol.upper()
     ).first()
     if entry:
+        _mark_official_streak_boundaries([entry], day)
         history_rows = list(
             DailyMoverEntry.objects.filter(symbol=entry.symbol, snapshot__as_of_date__lte=day)
             .select_related("snapshot")

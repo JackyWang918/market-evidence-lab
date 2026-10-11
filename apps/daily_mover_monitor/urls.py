@@ -8,5 +8,5 @@ app_name = "daily_mover_monitor"
 urlpatterns = [
     path("", views.index, name="index"),
     path("history/", views.history, name="history"),
-    path("<slug:symbol>/", views.detail, name="detail"),
+    path("<str:symbol>/", views.detail, name="detail"),
 ]
