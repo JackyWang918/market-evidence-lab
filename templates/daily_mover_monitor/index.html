@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}合约异动 · Market Evidence Lab{% endblock %}
+{% block body_class %}daily-mover-page{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'daily_mover_monitor/dashboard.css' %}">{% endblock %}
+{% block content %}<div class="dm-page">{% include "daily_mover_monitor/_board.html" with show_tabs=True %}</div>{% endblock %}

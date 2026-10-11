@@ -6,6 +6,7 @@ urlpatterns = [
     path("btc-prediction/", include("apps.btc_prediction.urls")),
     path("trading-assistant/", include("apps.trading_assistant.urls")),
     path("meme-monitor/", include("apps.meme_monitor.urls")),
+    path("daily-movers/", include("apps.daily_mover_monitor.urls")),
     path("microstructure/", include("apps.microstructure.urls")),
     path("market-data/", include("apps.market_data.urls")),
     path("market-funds/", include("apps.market_funds.urls")),

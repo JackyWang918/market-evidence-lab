@@ -3,6 +3,7 @@ import threading
 from uuid import uuid4
 
 from django.core.management.base import BaseCommand, CommandError
+from apps.daily_mover_monitor.scheduling import execute_due as execute_daily_movers_due, get_schedule as get_daily_movers_schedule
 
 from apps.meme_monitor.scheduling import (
     claim_due_meme_schedules,
@@ -77,6 +78,7 @@ class Command(BaseCommand):
         get_builtin_market_pilot_schedules()
         get_builtin_research_snapshot_schedule()
         get_builtin_meme_schedule()
+        get_daily_movers_schedule()
         executor_id = str(uuid4())
         stop_event = threading.Event()
 
@@ -99,6 +101,12 @@ class Command(BaseCommand):
         try:
             while not stop_event.is_set():
                 heartbeat()
+                try:
+                    execute_daily_movers_due()
+                except Exception as exc:
+                    self.stderr.write(self.style.ERROR(
+                        f"Daily mover scan failed ({exc.__class__.__name__}); continuing."
+                    ))
                 try:
                     claimed_meme_ids = claim_due_meme_schedules()
                 except Exception as exc:

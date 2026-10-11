@@ -105,6 +105,27 @@ uv run --env-file .env python manage.py runserver 8001
 uv run --env-file .env python manage.py run_scheduler
 ```
 
+## 合约异动日榜
+
+`/daily-movers/` 是币安 U 本位永续合约日线异动榜。默认扫描交易中的 USDT、USDC
+计价永续合约；统一的前 30 榜单先排含 5D 信号的合约，组内按距高点回撤升序。
+每天北京时间 08:20 后，统一调度器扫描上一根完整 UTC 日 K。首次启动调度器若
+已过 08:20 且当天尚无快照，会补跑当天；临时故障每 5 分钟重试。手工扫描使用：
+
+```bash
+uv run --env-file .env python manage.py scan_daily_movers
+```
+
+规则使用最近 5 / 7 根完整日 K 的区间最低价和最高价，要求低点所在 K 早于
+高点所在 K，涨幅至少 100%；最新收盘价比 8 天前收盘价至少高 50%，相对从
+区间低点以来的最高价回撤不超过 30%。每个信号分别校验回撤，双信号显示为
+`5D+7D`。盘口只在价格候选币中检查，默认最优价上下 1% 范围内的买卖盘
+各至少 10,000 计价币且价差不超过 50 bps；不按成交额过滤。
+门槛可通过 `DAILY_MOVER_MIN_SIDE_DEPTH`、`DAILY_MOVER_MAX_SPREAD_BPS`
+以及 `DAILY_MOVER_QUOTE_ASSETS` 配置。已发布的每日榜单、排名及详情 K 线
+不会随之后的行情修订而改变；历史从本功能上线后开始积累，因为过去的盘口
+状态无法从当前盘口接口还原。
+
 Binance 公告与 BLS RSS 默认显式直连，不使用系统环境代理。若当前网络无法访问，可在 `.env` 配置本地代理：
 
 ```dotenv

@@ -1,0 +1,144 @@
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
+from unittest.mock import patch
+
+import httpx
+from django.test import SimpleTestCase, TestCase
+from django.urls import reverse
+
+from apps.daily_mover_monitor.detector import Candle, detect
+from apps.daily_mover_monitor.models import DailyMoverEntry, DailyMoverSnapshot
+from apps.daily_mover_monitor.service import scan
+from apps.daily_mover_monitor.source import FuturesMarketClient
+from apps.market_data.binance import BinanceKlineClient
+
+
+DAY = date(2026, 10, 12)
+SCAN_TIME = datetime(2026, 10, 12, 0, 21, tzinfo=UTC)
+
+
+def candles(symbol="five"):
+    start = datetime(2026, 10, 3, tzinfo=UTC)
+    if symbol == "five":
+        closes = [10, 10, 10, 10, 10, 10, 20, 20, 20]
+        highs = [11, 11, 11, 11, 11, 11, 22, 21, 21]
+        lows = [10, 10, 10, 10, 9, 10, 18, 19, 19]
+    elif symbol == "seven":
+        closes = [5, 5, 5, 10, 10, 10, 10, 10, 10]
+        highs = [6, 6, 6, 12, 11, 11, 11, 11, 11]
+        lows = [5, 5, 4, 9, 9, 9, 9, 9, 9]
+    else:
+        closes = [10] * 9
+        highs = [11] * 9
+        lows = [9] * 9
+    return [
+        Candle(start + timedelta(days=index), Decimal(closes[index]),
+               Decimal(highs[index]), Decimal(lows[index]), Decimal(closes[index]))
+        for index in range(9)
+    ]
+
+
+class DetectorTests(SimpleTestCase):
+    def test_both_windows_and_seven_only(self):
+        self.assertEqual(detect(candles("five"))[0], "5D+7D")
+        self.assertEqual(detect(candles("seven"))[0], "7D 翻倍")
+
+    def test_rejects_high_before_low_even_if_range_doubles(self):
+        rows = candles("five")
+        rows[4] = Candle(rows[4].open_at, Decimal(10), Decimal(25), Decimal(10), Decimal(10))
+        rows[6] = Candle(rows[6].open_at, Decimal(20), Decimal(21), Decimal(8), Decimal(20))
+        self.assertIsNone(detect(rows))
+
+    def test_rejects_missing_daily_candle(self):
+        rows = candles("five")
+        rows[3] = Candle(rows[3].open_at + timedelta(days=1), *(
+            rows[3].open, rows[3].high, rows[3].low, rows[3].close
+        ))
+        self.assertIsNone(detect(rows))
+
+
+class SourceTests(SimpleTestCase):
+    def test_discovers_perpetuals_and_measures_book_without_turnover(self):
+        def respond(request):
+            if request.url.path.endswith("exchangeInfo"):
+                return httpx.Response(200, json={"symbols": [
+                    {"symbol": "ONEUSDT", "quoteAsset": "USDT", "status": "TRADING", "contractType": "PERPETUAL"},
+                    {"symbol": "TWOUSDC", "quoteAsset": "USDC", "status": "TRADING", "contractType": "PERPETUAL"},
+                    {"symbol": "OLDUSDT", "quoteAsset": "USDT", "status": "BREAK", "contractType": "PERPETUAL"},
+                    {"symbol": "QUARTERUSDT", "quoteAsset": "USDT", "status": "TRADING", "contractType": "CURRENT_QUARTER"},
+                ]})
+            if request.url.path.endswith("depth"):
+                return httpx.Response(200, json={
+                    "bids": [["100", "100"], ["99.5", "50"], ["98", "10000"]],
+                    "asks": [["100.1", "100"], ["100.5", "50"], ["102", "10000"]],
+                })
+            raise AssertionError(request.url.path)
+
+        http_client = httpx.Client(transport=httpx.MockTransport(respond))
+        source = FuturesMarketClient(BinanceKlineClient(http_client=http_client))
+        try:
+            self.assertEqual(source.symbols(), [("ONEUSDT", "USDT"), ("TWOUSDC", "USDC")])
+            bid, ask, spread = source.depth("ONEUSDT")
+            self.assertEqual(bid, Decimal("14975.0"))
+            self.assertEqual(ask, Decimal("15035.0"))
+            self.assertLess(spread, Decimal(11))
+        finally:
+            http_client.close()
+
+
+class FakeSource:
+    def __init__(self, *, thin=False):
+        self.thin = thin
+        self.calls = []
+
+    def symbols(self):
+        return [("FIVEUSDT", "USDT"), ("SEVENUSDT", "USDT"), ("FLATUSDT", "USDT")]
+
+    def candles(self, symbol, day):
+        self.calls.append(("candles", symbol))
+        return candles({"FIVEUSDT": "five", "SEVENUSDT": "seven"}.get(symbol, "flat"))
+
+    def depth(self, symbol):
+        self.calls.append(("depth", symbol))
+        amount = Decimal(100) if self.thin and symbol == "SEVENUSDT" else Decimal(20000)
+        return amount, amount, Decimal(10)
+
+
+class SnapshotTests(TestCase):
+    def test_scan_saves_ranked_snapshot_and_reuses_it(self):
+        source = FakeSource(thin=True)
+        snapshot = scan(DAY, client=source, now=SCAN_TIME)
+        self.assertEqual(snapshot.scanned_count, 3)
+        self.assertEqual(snapshot.candidate_count, 2)
+        self.assertEqual(snapshot.excluded_depth_count, 1)
+        self.assertEqual(list(snapshot.entries.values_list("symbol", flat=True)), ["FIVEUSDT"])
+        self.assertEqual(source.calls.count(("depth", "FLATUSDT")), 0)
+        self.assertEqual(scan(DAY, client=source, now=SCAN_TIME).pk, snapshot.pk)
+        self.assertEqual(DailyMoverSnapshot.objects.count(), 1)
+        self.assertEqual(DailyMoverEntry.objects.get().consecutive_days, 1)
+        with self.assertRaises(RuntimeError):
+            snapshot.delete()
+        with self.assertRaises(RuntimeError):
+            DailyMoverEntry.objects.filter(snapshot=snapshot).update(rank=2)
+
+        board = self.client.get(reverse("daily_mover_monitor:index"), {"date": DAY.isoformat()})
+        self.assertContains(board, "FIVEUSDT")
+        self.assertContains(board, 'class="dm-mobile-list"')
+        self.assertContains(board, 'class="dm-tab-short"')
+        detail = self.client.get(reverse("daily_mover_monitor:detail", args=["FIVEUSDT"]), {"date": DAY.isoformat()})
+        self.assertContains(detail, "日 K 与翻倍区间")
+        history = self.client.get(reverse("daily_mover_monitor:history"))
+        self.assertContains(history, "历史日期")
+
+    @patch("apps.daily_mover_monitor.views.today_in_shanghai", return_value=DAY)
+    def test_dashboard_has_empty_state(self, _):
+        response = self.client.get(reverse("daily_mover_monitor:index"))
+        self.assertContains(response, "该日尚无榜单快照")
+        self.assertEqual(
+            response.context["recent_days"],
+            [DAY - timedelta(days=index) for index in range(4, -1, -1)],
+        )
+
+    def test_scan_rejects_unclosed_day(self):
+        with self.assertRaisesRegex(ValueError, "08:20"):
+            scan(DAY, client=FakeSource(), now=datetime(2026, 10, 12, 0, 10, tzinfo=UTC))

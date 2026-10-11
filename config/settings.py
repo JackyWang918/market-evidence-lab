@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "apps.news_data.apps.NewsDataConfig",
     "apps.news_analysis.apps.NewsAnalysisConfig",
     "apps.meme_monitor.apps.MemeMonitorConfig",
+    "apps.daily_mover_monitor.apps.DailyMoverMonitorConfig",
 ]
 
 MIDDLEWARE = [
@@ -119,6 +120,14 @@ BINANCE_FUTURES_BASE_URL = os.getenv(
     "BINANCE_FUTURES_BASE_URL",
     "https://fapi.binance.com",
 ).rstrip("/")
+
+DAILY_MOVER_MIN_SIDE_DEPTH = os.getenv("DAILY_MOVER_MIN_SIDE_DEPTH", "10000")
+DAILY_MOVER_MAX_SPREAD_BPS = os.getenv("DAILY_MOVER_MAX_SPREAD_BPS", "50")
+DAILY_MOVER_QUOTE_ASSETS = tuple(
+    item.strip().upper()
+    for item in os.getenv("DAILY_MOVER_QUOTE_ASSETS", "USDT,USDC").split(",")
+    if item.strip()
+)
 
 MICROSTRUCTURE_SYMBOLS = [
     value.strip().upper()
