@@ -9,11 +9,11 @@
     <div class="dm-summary dm-detail-summary">
         <div><span>区间涨幅</span><strong>+{{ entry.rise_pct|floatformat:2 }}%</strong></div>
         <div><span>距高点回撤</span><strong>{{ entry.drawdown_pct|floatformat:2 }}%{% if entry.drawdown_pct > 30 %}<span class="dm-drawdown-alert">高回撤</span>{% endif %}</strong></div>
-        <div><span>较 8 天前</span><strong>+{{ entry.change_8d_pct|floatformat:2 }}%</strong></div>
+        <div><span>较 {{ comparison_days }} 天前</span><strong>+{{ entry.baseline_change_pct|floatformat:2 }}%</strong></div>
         <div><span>连续入榜</span><strong>{% if entry.streak_open_start %}至少 {% endif %}{{ entry.consecutive_days }} 天</strong></div>
     </div>
-    <section class="dm-panel"><div class="dm-section-head"><div><span class="eyebrow">DAILY CANDLES</span><h2>日 K 与翻倍区间</h2></div><span>UTC 日期 · 仅展示计算使用的 9 根完整日 K</span></div>
-        <canvas id="dm-candles" height="360" role="img" aria-label="{{ entry.symbol }} 九日日 K，标出区间低点与高点"></canvas>
+    <section class="dm-panel"><div class="dm-section-head"><div><span class="eyebrow">DAILY CANDLES</span><h2>日 K 与上涨区间</h2></div><span>UTC 日期 · 仅展示计算使用的 {{ candle_count }} 根完整日 K</span></div>
+        <canvas id="dm-candles" height="360" role="img" aria-label="{{ entry.symbol }} {{ candle_count }} 日日 K，标出区间低点与高点"></canvas>
         {{ entry.candles|json_script:"dm-candle-data" }}
         <div id="dm-chart-meta" data-low="{{ entry.low_at|date:'Y-m-d' }}" data-high="{{ entry.high_at|date:'Y-m-d' }}"></div>
     </section>

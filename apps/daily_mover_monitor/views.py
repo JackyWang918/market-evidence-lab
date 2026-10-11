@@ -46,6 +46,7 @@ def _board_context(day: date, preview_data=None):
     else:
         entries = preview_by_day.get(day, [])
         snapshot = entries[0].snapshot if entries else None
+    is_current_rule = snapshot is None or snapshot.rule_version == "daily-mover-v2"
     return {
         "selected_day": day,
         "snapshot": snapshot,
@@ -55,6 +56,8 @@ def _board_context(day: date, preview_data=None):
         "latest_snapshot": DailyMoverSnapshot.objects.first(),
         "min_depth": settings.DAILY_MOVER_MIN_SIDE_DEPTH,
         "max_spread": settings.DAILY_MOVER_MAX_SPREAD_BPS,
+        "is_current_rule": is_current_rule,
+        "comparison_days": 10 if is_current_rule else 8,
     }
 
 
@@ -111,4 +114,6 @@ def detail(request, symbol: str):
     return render(request, "daily_mover_monitor/detail.html", {
         "entry": entry,
         "history_rows": history_rows,
+        "comparison_days": 10 if entry.snapshot.rule_version == "daily-mover-v2" else 8,
+        "candle_count": len(entry.candles),
     })

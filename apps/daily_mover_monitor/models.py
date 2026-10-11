@@ -88,7 +88,7 @@ class DailyMoverEntry(models.Model):
     quote_asset = models.CharField(max_length=10)
     signal = models.CharField(max_length=12)
     close = models.DecimalField(max_digits=40, decimal_places=18)
-    change_8d_pct = models.DecimalField(max_digits=18, decimal_places=6)
+    baseline_change_pct = models.DecimalField(max_digits=18, decimal_places=6)
     rise_pct = models.DecimalField(max_digits=18, decimal_places=6)
     drawdown_pct = models.DecimalField(max_digits=18, decimal_places=6)
     low_price = models.DecimalField(max_digits=40, decimal_places=18)

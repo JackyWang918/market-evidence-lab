@@ -60,6 +60,7 @@ def preview_rows() -> tuple[dict[date, list[SimpleNamespace]], DailyMoverPreview
             created_at=report.depth_checked_at,
             scanned_count=payload.get("symbol_count", 0),
             candidate_count=len(candidates),
+            rule_version=payload.get("rule_version", "daily-mover-v1"),
             excluded_depth_count=sum(
                 not row.get("current_depth_pass", False)
                 for row in candidates
@@ -81,7 +82,7 @@ def preview_rows() -> tuple[dict[date, list[SimpleNamespace]], DailyMoverPreview
                 close=Decimal(item["close"]),
                 rise_pct=Decimal(item["rise_pct"]),
                 drawdown_pct=Decimal(item["drawdown_pct"]),
-                change_8d_pct=Decimal(item["change_8d_pct"]),
+                baseline_change_pct=Decimal(item.get("baseline_change_pct", item.get("change_8d_pct"))),
                 low_at=datetime.combine(date.fromisoformat(item["low_at"]), time.min, UTC),
                 high_at=datetime.combine(date.fromisoformat(item["high_at"]), time.min, UTC),
                 low_price=Decimal(item["low_price"]),

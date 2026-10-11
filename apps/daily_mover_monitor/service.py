@@ -63,8 +63,8 @@ def scan(
                 latest_candles += 1
             result = detect(candles)
             if result:
-                signal_name, signal, change_8d = result
-                candidates.append((symbol, quote_asset, candles, signal_name, signal, change_8d))
+                signal_name, signal, baseline_change = result
+                candidates.append((symbol, quote_asset, candles, signal_name, signal, baseline_change))
         if latest_candles == 0:
             raise RuntimeError("没有取得上一根完整日 K")
 
@@ -72,13 +72,13 @@ def scan(
         excluded = 0
         min_depth = Decimal(settings.DAILY_MOVER_MIN_SIDE_DEPTH)
         max_spread = Decimal(settings.DAILY_MOVER_MAX_SPREAD_BPS)
-        for symbol, quote_asset, candles, signal_name, signal, change_8d in candidates:
+        for symbol, quote_asset, candles, signal_name, signal, baseline_change in candidates:
             bid_depth, ask_depth, spread_bps = source.depth(symbol)
             if min(bid_depth, ask_depth) < min_depth or spread_bps > max_spread:
                 excluded += 1
                 continue
             eligible.append(
-                (symbol, quote_asset, candles, signal_name, signal, change_8d,
+                (symbol, quote_asset, candles, signal_name, signal, baseline_change,
                  bid_depth, ask_depth, spread_bps)
             )
 
@@ -107,10 +107,11 @@ def scan(
                 scanned_count=len(symbols),
                 candidate_count=len(candidates),
                 excluded_depth_count=excluded,
+                rule_version="daily-mover-v2",
             )
             entries = []
             for rank, row in enumerate(eligible[:30], start=1):
-                symbol, quote_asset, candles, signal_name, signal, change_8d, bid_depth, ask_depth, spread_bps = row
+                symbol, quote_asset, candles, signal_name, signal, baseline_change, bid_depth, ask_depth, spread_bps = row
                 entries.append(DailyMoverEntry(
                     snapshot=snapshot,
                     rank=rank,
@@ -118,7 +119,7 @@ def scan(
                     quote_asset=quote_asset,
                     signal=signal_name,
                     close=candles[-1].close,
-                    change_8d_pct=change_8d,
+                    baseline_change_pct=baseline_change,
                     rise_pct=signal.rise_pct,
                     drawdown_pct=signal.drawdown_pct,
                     low_price=signal.low,

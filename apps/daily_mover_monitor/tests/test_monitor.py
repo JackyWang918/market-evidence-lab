@@ -9,7 +9,7 @@ import httpx
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
-from apps.daily_mover_monitor.detector import Candle, detect
+from apps.daily_mover_monitor.detector import Candle, detect, window_signal
 from apps.daily_mover_monitor.models import DailyMoverEntry, DailyMoverSnapshot
 from apps.daily_mover_monitor.preview import import_preview
 from apps.daily_mover_monitor.service import scan
@@ -22,35 +22,35 @@ SCAN_TIME = datetime(2026, 10, 12, 0, 21, tzinfo=UTC)
 
 
 def candles(symbol="five"):
-    start = datetime(2026, 10, 3, tzinfo=UTC)
+    start = datetime(2026, 10, 1, tzinfo=UTC)
     if symbol == "five":
-        closes = [10, 10, 10, 10, 10, 10, 20, 20, 20]
-        highs = [11, 11, 11, 11, 11, 11, 22, 21, 21]
-        lows = [10, 10, 10, 10, 9, 10, 18, 19, 19]
+        closes = [10, 10, 10, 10, 10, 10, 10, 10, 20, 20, 20]
+        highs = [11, 11, 11, 11, 11, 11, 11, 11, 22, 21, 21]
+        lows = [10, 10, 10, 10, 10, 10, 9, 10, 18, 19, 19]
     elif symbol == "seven":
-        closes = [5, 5, 5, 10, 10, 10, 10, 10, 10]
-        highs = [6, 6, 6, 12, 11, 11, 11, 11, 11]
-        lows = [5, 5, 4, 9, 9, 9, 9, 9, 9]
+        closes = [5, 5, 5, 5, 5, 9, 9, 9, 9, 9, 9]
+        highs = [6, 6, 6, 6, 6, 10, 10, 10, 10, 10, 10]
+        lows = [5, 5, 5, 5, 5, 9, 9, 9, 9, 9, 9]
     else:
-        closes = [10] * 9
-        highs = [11] * 9
-        lows = [9] * 9
+        closes = [10] * 11
+        highs = [11] * 11
+        lows = [9] * 11
     return [
         Candle(start + timedelta(days=index), Decimal(closes[index]),
                Decimal(highs[index]), Decimal(lows[index]), Decimal(closes[index]))
-        for index in range(9)
+        for index in range(11)
     ]
 
 
 class DetectorTests(SimpleTestCase):
     def test_both_windows_and_seven_only(self):
         self.assertEqual(detect(candles("five"))[0], "5D+7D")
-        self.assertEqual(detect(candles("seven"))[0], "7D 翻倍")
+        self.assertEqual(detect(candles("seven"))[0], "7D 涨80%+")
 
     def test_rejects_high_before_low_even_if_range_doubles(self):
         rows = candles("five")
-        rows[4] = Candle(rows[4].open_at, Decimal(10), Decimal(25), Decimal(10), Decimal(10))
-        rows[6] = Candle(rows[6].open_at, Decimal(20), Decimal(21), Decimal(8), Decimal(20))
+        rows[6] = Candle(rows[6].open_at, Decimal(10), Decimal(25), Decimal(10), Decimal(10))
+        rows[8] = Candle(rows[8].open_at, Decimal(20), Decimal(21), Decimal(8), Decimal(20))
         self.assertIsNone(detect(rows))
 
     def test_rejects_missing_daily_candle(self):
@@ -60,14 +60,26 @@ class DetectorTests(SimpleTestCase):
         ))
         self.assertIsNone(detect(rows))
 
-    def test_eight_day_change_accepts_30_percent_boundary(self):
+    def test_ten_day_change_accepts_20_percent_boundary(self):
         rows = candles("five")
-        rows[6] = Candle(rows[6].open_at, Decimal(10), Decimal(18), Decimal(10), Decimal(13))
-        rows[7] = Candle(rows[7].open_at, Decimal(13), Decimal(17), Decimal(12), Decimal(13))
-        rows[8] = Candle(rows[8].open_at, Decimal(13), Decimal(17), Decimal(12), Decimal(13))
-        self.assertEqual(detect(rows)[2], Decimal(30))
-        rows[8] = Candle(rows[8].open_at, Decimal(13), Decimal(17), Decimal(12), Decimal("12.99"))
+        rows[-1] = Candle(rows[-1].open_at, Decimal(20), Decimal(21), Decimal(12), Decimal(12))
+        self.assertEqual(detect(rows)[2], Decimal(20))
+        rows[-1] = Candle(rows[-1].open_at, Decimal(20), Decimal(21), Decimal(12), Decimal("11.99"))
         self.assertIsNone(detect(rows))
+
+    def test_window_thresholds_accept_boundary(self):
+        rows = candles("five")
+        rows[8] = Candle(rows[8].open_at, Decimal(12), Decimal("13.5"), Decimal(12), Decimal(12))
+        rows[9] = Candle(rows[9].open_at, Decimal(12), Decimal(13), Decimal(12), Decimal(12))
+        rows[10] = Candle(rows[10].open_at, Decimal(12), Decimal(13), Decimal(12), Decimal(12))
+        self.assertEqual(window_signal(rows, 5, Decimal(50)).rise_pct, Decimal(50))
+        self.assertIsNone(window_signal(rows, 5, Decimal("50.01")))
+        self.assertEqual(detect(rows)[0], "5D 涨50%+")
+        seven = candles("seven")
+        for index in range(5, 11):
+            seven[index] = Candle(seven[index].open_at, Decimal(9), Decimal(9), Decimal(9), Decimal(9))
+        self.assertEqual(window_signal(seven, 7, Decimal(80)).rise_pct, Decimal(80))
+        self.assertIsNone(window_signal(seven, 7, Decimal("80.01")))
 
     def test_high_drawdown_is_reported_without_excluding_signal(self):
         rows = candles("five")
@@ -109,6 +121,19 @@ class SourceTests(SimpleTestCase):
         finally:
             http_client.close()
 
+    def test_fetches_eleven_closed_daily_candles(self):
+        def respond(request):
+            self.assertEqual(request.url.params["limit"], "11")
+            self.assertEqual(request.url.params["startTime"], str(int(datetime(2026, 10, 1, tzinfo=UTC).timestamp() * 1000)))
+            return httpx.Response(200, json=[])
+
+        http_client = httpx.Client(transport=httpx.MockTransport(respond))
+        try:
+            source = FuturesMarketClient(BinanceKlineClient(http_client=http_client))
+            self.assertEqual(source.candles("FIVEUSDT", DAY), [])
+        finally:
+            http_client.close()
+
 
 class FakeSource:
     def __init__(self, *, thin=False):
@@ -139,6 +164,7 @@ class SnapshotTests(TestCase):
         self.assertEqual(source.calls.count(("depth", "FLATUSDT")), 0)
         self.assertEqual(scan(DAY, client=source, now=SCAN_TIME).pk, snapshot.pk)
         self.assertEqual(DailyMoverSnapshot.objects.count(), 1)
+        self.assertEqual(snapshot.rule_version, "daily-mover-v2")
         self.assertEqual(DailyMoverEntry.objects.get().consecutive_days, 1)
         with self.assertRaises(RuntimeError):
             snapshot.delete()
@@ -147,11 +173,12 @@ class SnapshotTests(TestCase):
 
         board = self.client.get(reverse("daily_mover_monitor:index"), {"date": DAY.isoformat()})
         self.assertContains(board, "FIVEUSDT")
+        self.assertContains(board, "较 10 天前")
         self.assertContains(board, "前日无数据")
         self.assertContains(board, 'class="dm-mobile-list"')
         self.assertContains(board, 'class="dm-tab-short"')
         detail = self.client.get(reverse("daily_mover_monitor:detail", args=["FIVEUSDT"]), {"date": DAY.isoformat()})
-        self.assertContains(detail, "日 K 与翻倍区间")
+        self.assertContains(detail, "日 K 与上涨区间")
         history = self.client.get(reverse("daily_mover_monitor:history"))
         self.assertContains(history, "历史日期")
 
@@ -212,6 +239,7 @@ class SnapshotTests(TestCase):
         self.assertContains(board, "盘口取自 2026-10-12 01:27 北京时间")
         self.assertContains(board, "至少连榜 2 天")
         self.assertContains(board, "高回撤")
+        self.assertContains(board, "较 8 天前")
         self.assertEqual(board.context["entries"][0].consecutive_days, 2)
         history = self.client.get(reverse("daily_mover_monitor:history"), {"date": "2026-10-10"})
         self.assertContains(history, "FIVEUSDT")
