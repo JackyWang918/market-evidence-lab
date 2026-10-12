@@ -58,9 +58,9 @@ class FuturesMarketClient:
         ]
         return sorted(set(symbols))
 
-    def candles(self, symbol: str, as_of_date: date) -> list[Candle]:
+    def candles(self, symbol: str, as_of_date: date, *, days: int = 11) -> list[Candle]:
         end = datetime.combine(as_of_date, datetime.min.time(), UTC)
-        start = end - timedelta(days=11)
+        start = end - timedelta(days=days)
         rows = self._get(
             "/fapi/v1/klines",
             params={
@@ -68,7 +68,7 @@ class FuturesMarketClient:
                 "interval": "1d",
                 "startTime": int(start.timestamp() * 1000),
                 "endTime": int(end.timestamp() * 1000) - 1,
-                "limit": 11,
+                "limit": days,
             },
         )
         if not isinstance(rows, list):

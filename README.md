@@ -107,6 +107,10 @@ uv run --env-file .env python manage.py run_scheduler
 
 ## 合约异动日榜
 
+第一版结构观察已加入榜单与详情；掉榜合约在 `/daily-movers/structures/` 继续跟踪。
+正式跟踪与历史回放分开保存，平台边界冻结、回撤确认与平台突破分别计算，不增加做多评分。
+试用规则、历史回放命令及验证方法见 [合约结构观察](docs/daily-mover-structures.md)。
+
 `/daily-movers/` 是币安 U 本位永续合约日线异动榜。默认扫描交易中的 USDT、USDC
 计价永续合约；统一的前 30 榜单先排含 5D 信号的合约，组内按距高点回撤升序。
 首页提供最近 8 日 Tab，截止昨天；更早日期在历史页选择。

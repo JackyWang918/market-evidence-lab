@@ -1,0 +1,5 @@
+<div class="dm-structure-compact">
+    <strong class="dm-structure-state">{{ structure.state }}</strong>
+    {% include 'daily_mover_monitor/_platform_range.html' %}
+    {% for plan in structure.plans %}<span>{{ plan.name }}：{{ plan.status }} · {{ plan.next }}</span><span>{% if plan.space.r %}{{ plan.entry_basis }} {{ plan.space.r|floatformat:2 }}R{% else %}{{ plan.space.reason }}{% endif %}</span>{% endfor %}
+</div>

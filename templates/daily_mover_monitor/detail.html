@@ -4,30 +4,32 @@
 {% block extra_css %}<link rel="stylesheet" href="{% static 'daily_mover_monitor/dashboard.css' %}">{% endblock %}
 {% block content %}<div class="dm-page">
     <a class="dm-back" href="{% url 'daily_mover_monitor:index' %}?date={{ entry.snapshot.as_of_date|date:'Y-m-d' }}">← 返回 {{ entry.snapshot.as_of_date|date:'Y-m-d' }} 榜单</a>
-    <div class="dm-heading"><div><p class="eyebrow">#{{ entry.rank }} · {{ entry.signal }}</p><h1>{{ entry.symbol }}</h1><p>{{ entry.quote_asset }} 本位永续 · {{ entry.snapshot.as_of_date|date:"Y-m-d" }} {% if entry.snapshot.preview %}历史试算{% else %}日榜快照{% endif %}</p></div></div>
-    {% if entry.snapshot.preview %}<div class="dm-preview-note" role="status"><strong>历史试算 · 非正式快照</strong><span>价格为历史日 K；盘口与名次按本次试算时的当前深度计算。</span></div>{% endif %}
-    <div class="dm-summary dm-detail-summary">
+    <div class="dm-heading"><div><p class="eyebrow">{% if entry.rank %}#{{ entry.rank }}{% else %}掉榜后观察{% endif %} · {{ entry.signal }}</p><h1>{{ entry.symbol }}</h1><p>{{ entry.quote_asset }} 本位永续 · {{ entry.snapshot.as_of_date|date:"Y-m-d" }} {% if entry.snapshot.preview %}历史试算 / 回放{% else %}正式记录{% endif %}</p></div><a class="dm-link" href="{% url 'daily_mover_monitor:watchlist' %}?origin={{ structure_origin }}">结构观察池 →</a></div>
+    {% if entry.snapshot.preview and entry.rank %}<div class="dm-preview-note" role="status"><strong>历史试算 · 非正式快照</strong><span>价格为历史日 K；盘口与名次按本次试算时的当前深度计算。</span></div>{% endif %}
+    {% if entry.rank %}<div class="dm-summary dm-detail-summary">
         <div><span>区间涨幅</span><strong>+{{ entry.rise_pct|floatformat:2 }}%</strong></div>
         <div><span>距高点回撤</span><strong>{{ entry.drawdown_pct|floatformat:2 }}%{% if entry.drawdown_pct > 30 %}<span class="dm-drawdown-alert">高回撤</span>{% endif %}</strong></div>
         <div><span>较 {{ comparison_days }} 天前</span><strong>+{{ entry.baseline_change_pct|floatformat:2 }}%</strong></div>
         <div><span>连续入榜</span><strong>{% if entry.streak_open_start %}至少 {% endif %}{{ entry.consecutive_days }} 天</strong></div>
-    </div>
+    </div>{% endif %}
+    {% include 'daily_mover_monitor/_structure_detail.html' %}
     <section class="dm-panel"><div class="dm-section-head"><div><span class="eyebrow">DAILY CANDLES</span><h2>日 K 与上涨区间</h2></div><span>UTC 日期 · 仅展示计算使用的 {{ candle_count }} 根完整日 K</span></div>
-        <canvas id="dm-candles" height="360" role="img" aria-label="{{ entry.symbol }} {{ candle_count }} 日日 K，标出区间低点与高点"></canvas>
-        {{ entry.candles|json_script:"dm-candle-data" }}
-        <div id="dm-chart-meta" data-low="{{ entry.low_at|date:'Y-m-d' }}" data-high="{{ entry.high_at|date:'Y-m-d' }}"></div>
+        <canvas id="dm-candles" height="360" role="img" aria-label="{{ entry.symbol }} 日 K 与结构参考边界"></canvas>
+        {% if structure_candles %}{{ structure_candles|json_script:"dm-candle-data" }}{% else %}{{ entry.candles|json_script:"dm-candle-data" }}{% endif %}
+        <div id="dm-chart-meta" data-low="{% if structure.anchor_date %}{{ structure.anchor_date }}{% else %}{{ entry.low_at|date:'Y-m-d' }}{% endif %}" data-high="{% if structure.peak_date %}{{ structure.peak_date }}{% else %}{{ entry.high_at|date:'Y-m-d' }}{% endif %}" data-platform-low="{{ structure.platform.low }}" data-platform-high="{{ structure.platform.high }}" data-confirmed="{{ structure.platform.confirmed }}"></div>
     </section>
-    <div class="dm-detail-grid">
-        <section class="dm-panel"><div class="dm-section-head"><h2>区间与盘口</h2></div><dl class="dm-facts">
-            <div><dt>区间低点</dt><dd>{{ entry.low_price|floatformat:8 }} <small>{{ entry.low_at|date:"Y-m-d" }} UTC</small></dd></div>
-            <div><dt>区间高点</dt><dd>{{ entry.high_price|floatformat:8 }} <small>{{ entry.high_at|date:"Y-m-d" }} UTC</small></dd></div>
+    {% if entry.rank %}<div class="dm-detail-grid">
+        <section class="dm-panel"><div class="dm-section-head"><h2>榜单窗口与盘口</h2></div><dl class="dm-facts">
+            <div><dt>榜单区间低点</dt><dd>{{ entry.low_price|floatformat:8 }} <small>{{ entry.low_at|date:"Y-m-d" }} UTC</small></dd></div>
+            <div><dt>榜单区间高点</dt><dd>{{ entry.high_price|floatformat:8 }} <small>{{ entry.high_at|date:"Y-m-d" }} UTC</small></dd></div>
             <div><dt>日线收盘</dt><dd>{{ entry.close|floatformat:8 }}</dd></div>
             <div><dt>买盘 / 卖盘 1% 深度</dt><dd>{{ entry.bid_depth|floatformat:0 }} / {{ entry.ask_depth|floatformat:0 }} {{ entry.quote_asset }}</dd></div>
             <div><dt>买卖价差</dt><dd>{{ entry.spread_bps|floatformat:2 }} bps</dd></div>
+            <div><dt>盘口采样时间</dt><dd>{{ entry.snapshot.created_at|date:"Y-m-d H:i" }} 北京时间{% if entry.snapshot.preview %} · 试算时现值{% endif %}</dd></div>
         </dl></section>
         <section class="dm-panel"><div class="dm-section-head"><h2>排名变化</h2></div><p class="dm-meta">昨日排名：{% if entry.previous_rank %}#{{ entry.previous_rank }}{% elif entry.previous_day_unknown %}前日无数据{% else %}未入榜{% endif %}</p>
             <div class="dm-history-list">{% for item in history_rows %}<a href="{% url 'daily_mover_monitor:detail' entry.symbol %}?date={{ item.snapshot.as_of_date|date:'Y-m-d' }}"><time>{{ item.snapshot.as_of_date|date:"Y-m-d" }}</time><strong>#{{ item.rank }}</strong><span>{{ item.signal }}</span></a>{% endfor %}</div>
         </section>
-    </div>
+    </div>{% endif %}
 </div>{% endblock %}
 {% block extra_js %}<script src="{% static 'daily_mover_monitor/chart.js' %}" defer></script>{% endblock %}

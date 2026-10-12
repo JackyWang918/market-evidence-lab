@@ -1,0 +1,5 @@
+<div class="dm-platform-range dm-platform-{{ structure.platform_view.tone }}">
+    <span class="dm-platform-label">{{ structure.platform_view.label }}</span>
+    {% if structure.platform_view.low %}<strong>{{ structure.platform_view.low|floatformat:8 }}–{{ structure.platform_view.high|floatformat:8 }}</strong>{% endif %}
+    <small>{{ structure.platform_view.summary }}</small>
+</div>

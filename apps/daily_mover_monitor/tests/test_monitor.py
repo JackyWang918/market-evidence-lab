@@ -143,7 +143,7 @@ class FakeSource:
     def symbols(self):
         return [("FIVEUSDT", "USDT"), ("SEVENUSDT", "USDT"), ("FLATUSDT", "USDT")]
 
-    def candles(self, symbol, day):
+    def candles(self, symbol, day, *, days=11):
         self.calls.append(("candles", symbol))
         return candles({"FIVEUSDT": "five", "SEVENUSDT": "seven"}.get(symbol, "flat"))
 

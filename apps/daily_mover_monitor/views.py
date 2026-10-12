@@ -1,14 +1,29 @@
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from types import SimpleNamespace
 
 from django.conf import settings
+from django.db.models import OuterRef, Subquery
 from django.http import Http404
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
-from .models import DailyMoverEntry, DailyMoverSnapshot
+from .models import DailyMoverEntry, DailyMoverSnapshot, StructureObservation, StructureWatch
 from .preview import preview_rows
 from .service import today_in_shanghai
+from .structure import VERSION, unavailable
+from .structure_presentation import present_structure
+
+
+def _attach_structures(entries, day):
+    observations = StructureObservation.objects.filter(
+        as_of_date=day, rule_version=VERSION, watch__symbol__in=[e.symbol for e in entries]
+    ).select_related("watch")
+    by_key = {(o.watch.symbol, o.watch.origin): o for o in observations}
+    for entry in entries:
+        origin = "replay" if getattr(entry.snapshot, "preview", False) else "official"
+        observation = by_key.get((entry.symbol, origin))
+        entry.structure = present_structure(observation.result if observation else unavailable(
+            "等待完整结构数据或历史回放", day-timedelta(days=1)))
 
 
 def _parse_day(value: str | None) -> date | None:
@@ -47,6 +62,7 @@ def _board_context(day: date, preview_data=None):
         entries = preview_by_day.get(day, [])
         snapshot = entries[0].snapshot if entries else None
     is_current_rule = snapshot is None or snapshot.rule_version == "daily-mover-v2"
+    _attach_structures(entries, day)
     return {
         "selected_day": day,
         "snapshot": snapshot,
@@ -90,6 +106,7 @@ def history(request):
 @require_GET
 def detail(request, symbol: str):
     day = _parse_day(request.GET.get("date")) or today_in_shanghai()
+    requested_origin = request.GET.get("origin")
     entry = DailyMoverEntry.objects.select_related("snapshot").filter(
         snapshot__as_of_date=day, symbol=symbol.upper()
     ).first()
@@ -103,17 +120,75 @@ def detail(request, symbol: str):
     else:
         by_day, _ = preview_rows()
         entry = next((item for item in by_day.get(day, []) if item.symbol == symbol.upper()), None)
-        if entry is None:
-            raise Http404("没有这一天的合约记录")
         history_rows = [
             item
             for prior_day in sorted((value for value in by_day if value <= day), reverse=True)
             for item in by_day[prior_day]
-            if item.symbol == entry.symbol
+            if item.symbol == symbol.upper()
         ][:30]
+    origin = requested_origin or ("replay" if entry and getattr(entry.snapshot, "preview", False) else "official")
+    observation = StructureObservation.objects.filter(
+        watch__symbol=symbol.upper(), watch__origin=origin, as_of_date__lte=day, rule_version=VERSION,
+    ).select_related("watch").first()
+    if entry is None:
+        if observation is None:
+            watch = StructureWatch.objects.filter(symbol=symbol.upper(), origin=origin, discovered_on__lte=day).first()
+            if watch is None:
+                raise Http404("没有这一天的合约或结构观察记录")
+            result = unavailable("等待完整结构数据", day-timedelta(days=1))
+        else:
+            watch, result = observation.watch, observation.result
+        candles = result.get("candles", [])
+        entry = SimpleNamespace(
+            symbol=watch.symbol, quote_asset=watch.quote_asset, rank=None, signal="结构观察",
+            snapshot=SimpleNamespace(as_of_date=day, preview=origin == "replay", rule_version="daily-mover-v2"),
+            candles=candles, low_at=datetime.combine(watch.anchor_date, time.min, UTC),
+            high_at=datetime.combine(date.fromisoformat(result.get("peak_date", watch.anchor_date.isoformat())), time.min, UTC),
+            low_price=watch.anchor_price, high_price=result.get("peak"),
+            close=candles[-1]["close"] if candles else None,
+        )
+    structure = present_structure(observation.result if observation else unavailable(
+        "等待完整结构数据或历史回放", day-timedelta(days=1)))
     return render(request, "daily_mover_monitor/detail.html", {
         "entry": entry,
         "history_rows": history_rows,
         "comparison_days": 10 if entry.snapshot.rule_version == "daily-mover-v2" else 8,
-        "candle_count": len(entry.candles),
+        "candle_count": len(structure.get("candles", []) or entry.candles),
+        "structure": structure,
+        "observation": observation,
+        "structure_stale": bool(observation and observation.as_of_date != day),
+        "structure_candles": structure.get("candles", []),
+        "structure_origin": origin,
+        "structure_history": StructureObservation.objects.filter(watch=observation.watch, as_of_date__lte=day, rule_version=VERSION).select_related("watch").order_by("-as_of_date")[:40] if observation else [],
+    })
+
+
+@require_GET
+def watchlist(request):
+    origin = "replay" if request.GET.get("origin") == "replay" else "official"
+    latest = StructureObservation.objects.filter(watch__origin=origin, rule_version=VERSION).first()
+    day = _parse_day(request.GET.get("date")) or (latest.as_of_date if latest else today_in_shanghai())
+    query = request.GET.get("symbol", "").strip().upper()[:30]
+    watches = StructureWatch.objects.filter(origin=origin, discovered_on__lte=day)
+    if query:
+        watches = watches.filter(symbol__icontains=query)
+    latest_ids = watches.annotate(latest_observation=Subquery(
+        StructureObservation.objects.filter(watch_id=OuterRef("pk"), as_of_date__lte=day, rule_version=VERSION).values("pk")[:1]
+    )).values_list("latest_observation", flat=True)
+    observations = {o.watch_id: o for o in StructureObservation.objects.filter(pk__in=latest_ids)}
+    rows = []
+    for watch in watches:
+        observation = observations.get(watch.pk)
+        ended = bool(watch.ended_on and watch.ended_on <= day)
+        if ended and request.GET.get("archive") != "1":
+            continue
+        if request.GET.get("dropped") == "1" and observation and observation.result.get("ranked"):
+            continue
+        rows.append({"watch": watch, "observation": observation, "ended": ended,
+                     "stale": bool(observation and observation.as_of_date < day),
+                     "structure": present_structure(observation.result if observation else unavailable("等待采集结构日 K", day-timedelta(days=1)))})
+    return render(request, "daily_mover_monitor/watchlist.html", {
+        "rows": rows, "origin": origin, "selected_day": day,
+        "archive": request.GET.get("archive") == "1",
+        "symbol_query": query, "dropped": request.GET.get("dropped") == "1",
     })

@@ -54,7 +54,7 @@
             ctx.textAlign = "center";
             ctx.font = "11px system-ui, sans-serif";
             if (!compact || index % 2 === 0 || index === rows.length - 1) {
-                ctx.fillText(row.time.slice(5), px, height - 13);
+                if (index % Math.max(1, Math.ceil(rows.length / (compact ? 6 : 12))) === 0 || index === rows.length - 1) ctx.fillText(row.time.slice(5), px, height - 13);
             }
             if (row.time === meta.dataset.low || row.time === meta.dataset.high) {
                 const isLow = row.time === meta.dataset.low;
@@ -64,6 +64,20 @@
                 ctx.fillText(isLow ? "低点" : "高点", px, markerY);
             }
         });
+        const confirmed = rows.findIndex(row => row.time === meta.dataset.confirmed);
+        if (confirmed >= 0) {
+            [[meta.dataset.platformLow, "平台下沿"], [meta.dataset.platformHigh, "平台上沿"]].forEach(([price, label]) => {
+                const value = Number(price);
+                if (!Number.isFinite(value) || value <= 0) return;
+                ctx.strokeStyle = "#315bce";
+                ctx.lineWidth = 1;
+                ctx.setLineDash([5, 4]);
+                ctx.beginPath(); ctx.moveTo(x(confirmed), y(value)); ctx.lineTo(right, y(value)); ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = "#315bce"; ctx.textAlign = "right";
+                ctx.fillText(`${label} ${value.toPrecision(5)}`, right - 4, y(value) - 5);
+            });
+        }
     }
     new ResizeObserver(draw).observe(canvas);
     draw();

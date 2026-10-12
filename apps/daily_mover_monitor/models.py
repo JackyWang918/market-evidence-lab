@@ -126,3 +126,44 @@ class DailyMoverEntry(models.Model):
     def rank_change_magnitude(self) -> int | None:
         change = self.rank_change
         return abs(change) if change is not None else None
+
+
+class StructureWatch(models.Model):
+    """Separate cycles and provenance; leaving the board does not end a watch."""
+    symbol = models.CharField(max_length=30)
+    quote_asset = models.CharField(max_length=10)
+    origin = models.CharField(max_length=10, choices=[("official", "正式跟踪"), ("replay", "历史回放")])
+    discovered_on = models.DateField()
+    last_ranked_on = models.DateField()
+    anchor_date = models.DateField()
+    anchor_price = models.DecimalField(max_digits=40, decimal_places=18)
+    ended_on = models.DateField(null=True, blank=True)
+    end_reason = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["symbol", "origin", "discovered_on"], name="structure_watch_cycle_unique")]
+        ordering = ["-discovered_on", "symbol"]
+
+
+class StructureObservation(models.Model):
+    objects = ImmutableManager()
+    watch = models.ForeignKey(StructureWatch, on_delete=models.PROTECT, related_name="observations")
+    as_of_date = models.DateField()
+    rule_version = models.CharField(max_length=30)
+    data_cutoff_at = models.DateTimeField()
+    generated_at = models.DateTimeField(auto_now_add=True)
+    input_hash = models.CharField(max_length=64)
+    result = models.JSONField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["watch", "as_of_date", "rule_version"], name="structure_observation_unique")]
+        ordering = ["-as_of_date", "-pk"]
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None:
+            raise RuntimeError("已发布的结构判断不可修改")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise RuntimeError("已发布的结构判断不可删除")

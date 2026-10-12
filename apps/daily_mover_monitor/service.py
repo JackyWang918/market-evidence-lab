@@ -33,6 +33,7 @@ def scan(
         raise ValueError("须在北京时间 08:20 后扫描上一根完整日 K")
     existing = DailyMoverSnapshot.objects.filter(as_of_date=day).first()
     if existing:
+        _update_structures(day, client)
         return existing
     with transaction.atomic():
         run, created = DailyMoverRun.objects.select_for_update().get_or_create(
@@ -146,6 +147,7 @@ def scan(
             run.candidate_count = len(candidates)
             run.excluded_depth_count = excluded
             run.save(update_fields=["status", "finished_at", "scanned_count", "candidate_count", "excluded_depth_count"])
+        _update_structures(day, source)
         return snapshot
     except Exception as exc:
         DailyMoverRun.objects.filter(as_of_date=day).update(
@@ -157,3 +159,23 @@ def scan(
     finally:
         if owns_source:
             source.close()
+
+
+def _update_structures(day, client):
+    # Structure collection is independent: it must never rewrite/fail a published rank.
+    import logging
+    from .structure_service import update_official
+    try:
+        _, errors = update_official(day, client=client)
+        if errors:
+            _retry_structures(day)
+    except Exception as exc:
+        logging.getLogger(__name__).warning("结构观察未完成: %s", type(exc).__name__)
+        _retry_structures(day)
+
+
+def _retry_structures(day):
+    from .models import DailyMoverSchedule
+    retry = timezone.now() + timedelta(minutes=5)
+    if retry.astimezone(SHANGHAI).date() == day:
+        DailyMoverSchedule.objects.filter(enabled=True).update(next_run_at=retry)
