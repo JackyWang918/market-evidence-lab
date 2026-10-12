@@ -14,7 +14,11 @@
     </div>{% endif %}
     {% include 'daily_mover_monitor/_structure_detail.html' %}
     <section class="dm-panel"><div class="dm-section-head"><div><span class="eyebrow">DAILY CANDLES</span><h2>日 K 与上涨区间</h2></div><span>UTC 日期 · 仅展示计算使用的 {{ candle_count }} 根完整日 K</span></div>
-        <canvas id="dm-candles" height="360" role="img" aria-label="{{ entry.symbol }} 日 K 与结构参考边界"></canvas>
+        <p class="dm-chart-hint">鼠标移入查看日期与开高低收，虚线显示指针价格；手机可点选，键盘左右键切换日 K。</p>
+        <div class="dm-chart-wrap">
+            <canvas id="dm-candles" height="360" tabindex="0" role="img" aria-label="{{ entry.symbol }} 日 K 与结构参考边界，可用左右方向键查看日 K" aria-describedby="dm-chart-tooltip"></canvas>
+            <div id="dm-chart-tooltip" class="dm-chart-tooltip" role="status" hidden></div>
+        </div>
         {% if structure_candles %}{{ structure_candles|json_script:"dm-candle-data" }}{% else %}{{ entry.candles|json_script:"dm-candle-data" }}{% endif %}
         <div id="dm-chart-meta" data-low="{% if structure.anchor_date %}{{ structure.anchor_date }}{% else %}{{ entry.low_at|date:'Y-m-d' }}{% endif %}" data-high="{% if structure.peak_date %}{{ structure.peak_date }}{% else %}{{ entry.high_at|date:'Y-m-d' }}{% endif %}" data-platform-low="{{ structure.platform.low }}" data-platform-high="{{ structure.platform.high }}" data-confirmed="{{ structure.platform.confirmed }}"></div>
     </section>
