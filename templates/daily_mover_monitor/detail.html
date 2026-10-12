@@ -12,9 +12,19 @@
         <div><span>较 {{ comparison_days }} 天前</span><strong>+{{ entry.baseline_change_pct|floatformat:2 }}%</strong></div>
         <div><span>连续入榜</span><strong>{% if entry.streak_open_start %}至少 {% endif %}{{ entry.consecutive_days }} 天</strong></div>
     </div>{% endif %}
-    {% include 'daily_mover_monitor/_structure_detail.html' %}
+    {% include 'daily_mover_monitor/_attention_detail.html' %}
+    <details class="dm-panel dm-evidence"><summary>查看结构背景、平台依据与原平台方案</summary>
+        {% include 'daily_mover_monitor/_structure_detail.html' %}
+    </details>
     <section class="dm-panel"><div class="dm-section-head"><div><span class="eyebrow">DAILY CANDLES</span><h2>日 K 与上涨区间</h2></div><span>UTC 日期 · 仅展示计算使用的 {{ candle_count }} 根完整日 K</span></div>
-        <p class="dm-chart-hint">鼠标移入查看日期与开高低收，虚线显示指针价格；手机可点选，键盘左右键切换日 K。</p>
+        <div class="dm-chart-tools">
+            <p class="dm-chart-hint">鼠标移入查看日期与开高低收，虚线显示指针价格；手机可点选，键盘左右键切换日 K。</p>
+            {% if structure.platform %}<dl class="dm-chart-legend" aria-label="平台上下沿参考价格">
+                <div><dt><span aria-hidden="true"></span>平台上沿</dt><dd>{{ structure.platform.high|floatformat:8 }}</dd></div>
+                <div><dt><span aria-hidden="true"></span>平台下沿</dt><dd>{{ structure.platform.low|floatformat:8 }}</dd></div>
+                {% if structure.state == '平台失效' %}<div class="dm-chart-legend-invalid"><dt>原平台</dt><dd>已失效</dd></div>{% endif %}
+            </dl>{% endif %}
+        </div>
         <div class="dm-chart-wrap">
             <canvas id="dm-candles" height="360" tabindex="0" role="img" aria-label="{{ entry.symbol }} 日 K 与结构参考边界，可用左右方向键查看日 K" aria-describedby="dm-chart-tooltip"></canvas>
             <div id="dm-chart-tooltip" class="dm-chart-tooltip" role="status" hidden></div>

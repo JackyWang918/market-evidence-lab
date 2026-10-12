@@ -1,6 +1,7 @@
 """Explain published judgments from their frozen inputs without changing them."""
 from copy import deepcopy
 from decimal import Decimal
+from .attention import build_attention
 
 
 def present_structure(result):
@@ -52,6 +53,9 @@ def present_structure(result):
                 view["reasons"].insert(0, f'当前连续整理 {result["consolidation_days"]}/{required} 日')
             view["summary"] = "；".join(view["reasons"]) or "尚未满足平台确认条件"
     result["platform_view"] = view
+    if "attention" not in result:
+        result["attention"] = build_attention(result)
+        result["attention"]["provenance"] = "recomputed"
     if not platform:
         for plan in result["plans"]:
             plan["next"] = "先确认平台，暂不生成该方案参考价"

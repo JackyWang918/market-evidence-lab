@@ -96,7 +96,7 @@
         });
         const confirmed = rows.findIndex(row => row.time === meta.dataset.confirmed);
         if (confirmed >= 0) {
-            [[meta.dataset.platformLow, "平台下沿"], [meta.dataset.platformHigh, "平台上沿"]].forEach(([price, label]) => {
+            [meta.dataset.platformLow, meta.dataset.platformHigh].forEach(price => {
                 const value = Number(price);
                 if (!Number.isFinite(value) || value <= 0) return;
                 ctx.strokeStyle = "#315bce";
@@ -104,8 +104,6 @@
                 ctx.setLineDash([5, 4]);
                 ctx.beginPath(); ctx.moveTo(x(confirmed), y(value)); ctx.lineTo(right, y(value)); ctx.stroke();
                 ctx.setLineDash([]);
-                ctx.fillStyle = "#315bce"; ctx.textAlign = "right";
-                ctx.fillText(`${label} ${value.toPrecision(5)}`, right - 4, y(value) - 5);
             });
         }
         if (!hover) {

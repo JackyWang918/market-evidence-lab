@@ -1,0 +1,29 @@
+<section class="dm-panel dm-attention-heading">
+    <div class="dm-section-head"><div><span class="eyebrow">DAILY ATTENTION · LONG / SHORT</span><h2>多空注意力区间</h2></div><span>日线级别 · {{ structure.attention.version }}</span></div>
+    <p class="dm-meta">价格截至 {{ structure.attention.cutoff }} UTC 日 K。{% if structure.attention.provenance == 'recomputed' %}<strong>新规则按原记录留存日 K 回算；不是当时发布的入场判断。</strong>{% else %}方案与本日结构记录一起保存。{% endif %}</p>
+    {% if structure_stale %}<p class="dm-meta">所选日期未更新，以下使用最后一条记录的截止日期。</p>{% endif %}
+    <p class="dm-meta">当前走势：<strong>{{ structure.attention.trend }}</strong> · 最新日 K 较前收盘 {{ structure.attention.day_change_pct|floatformat:2 }}%。进入区域 → 等待日线确认 → 计算入场参考。</p>
+</section>
+<div class="dm-detail-grid dm-attention-grid">
+{% for plan in structure.attention.plans %}<section class="dm-panel dm-attention-card dm-attention-{{ plan.direction }}">
+    <div class="dm-section-head"><h2>{{ plan.name }}</h2><span class="dm-structure-state">{{ plan.status }}</span></div>
+    <p class="dm-meta">注意力区间</p>
+    {% include 'daily_mover_monitor/_attention_zone.html' with hide_status=True %}
+    <p class="dm-plan-next">{{ plan.next }}</p>
+    <dl class="dm-facts">
+        <div><dt>入场参考区域</dt><dd>{% if plan.entry_zone %}{{ plan.entry_zone.low|floatformat:8 }}–{{ plan.entry_zone.high|floatformat:8 }} <small>触发日收盘附近 · 历史计划参考{% if plan.status == '已失效' %} · 已失效{% endif %}</small>{% else %}确认后计算{% endif %}</dd></div>
+        <div><dt>确认参考价</dt><dd>{% if plan.trigger %}{{ plan.trigger|floatformat:8 }}{% elif plan.direction == 'long' %}等待确认反弹高点{% else %}依据不足{% endif %}{% if plan.direction == 'short' %}<small>先跌破，再等后续反抽失败</small>{% endif %}</dd></div>
+        <div><dt>失效参考价</dt><dd>{{ plan.invalid|floatformat:8|default:'反抽确认后确定' }}<small>按日 K 收盘判断，不是自动止损委托</small></dd></div>
+        <div><dt>{% if plan.direction == 'long' %}首个压力参考价{% else %}首个支撑参考价{% endif %}</dt><dd>{{ plan.target|floatformat:8|default:'确认入场后识别' }}</dd></div>
+        <div><dt>价格空间 R</dt><dd>{% if plan.r %}{{ plan.r|floatformat:2 }}R <small>触发日参考 · 非当前剩余空间</small>{% else %}{{ plan.r_reason }}{% endif %}</dd></div>
+        {% if plan.r %}<div><dt>空间 / 风险距离</dt><dd>{{ plan.space_pct|floatformat:2 }}% / {{ plan.risk_pct|floatformat:2 }}%</dd></div>{% endif %}
+        <div><dt>方案基准 / 触发 / 失效日期</dt><dd>{{ plan.created_on|default:'—' }} / {{ plan.triggered_at|default:'尚未触发' }} / {{ plan.failed_on|default:'尚未失效' }}<small>对应 UTC 日 K 日期</small></dd></div>
+    </dl>
+    <details class="dm-evidence"><summary>查看本方案的计算依据</summary><dl class="dm-facts">{% for evidence in plan.evidence %}<div><dt>{{ evidence.label }}</dt><dd>{{ evidence.value }}</dd></div>{% endfor %}</dl></details>
+</section>{% endfor %}
+</div>
+<p class="dm-method">注意力区间是观察位置，不等于建议立即开仓。多头需止跌并突破确认的反弹高点；空头需收盘跌破后，在后续日 K 反抽失败。入场区域采用触发日收盘 ±0.1 ATR 的试用参考，未计成本，不保证成交。多头 R =（压力−入场）÷（入场−失效）；空头 R =（入场−支撑）÷（失效−入场），均不代表预期收益。</p>
+<details class="dm-panel dm-evidence"><summary>查看多空观察事件和试用规则</summary>
+    <ol class="dm-event-list">{% for event in structure.attention.events %}<li><time>{{ event.date }}</time><span>{{ event.label }}</span></li>{% empty %}<li>尚无可判断事件。</li>{% endfor %}</ol>
+    <p class="dm-meta">ATR 为此前 14 根日 K 的真实波幅均值。优先使用已确认平台下沿，否则使用高点后的回撤低点、已确认局部低点或最近 10 日窗口低点。未确认参考位明确标为待验证。区域单侧宽度取 0.25 ATR，限制为参考价的 0.5%～3%；观察进入、跌破或触发后边界冻结，失效事件保留。只有新的已确认低点，才重新建立失效后的方案。</p>
+</details>

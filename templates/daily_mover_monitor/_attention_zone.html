@@ -1,0 +1,5 @@
+<div class="dm-attention-zone dm-attention-{{ plan.direction }}{% if plan.status == '已失效' %} is-invalid{% endif %}">
+    <strong>{% if plan.zone %}{{ plan.zone.low|floatformat:8 }}–{{ plan.zone.high|floatformat:8 }}{% else %}依据不足{% endif %}</strong>
+    {% if not hide_status %}<span>{{ plan.name }} · {{ plan.status }}</span>{% endif %}
+    {% if plan.zone %}<small>{{ plan.zone.basis }}{% if plan.status == '已失效' %} · 原区域已失效{% endif %}</small>{% else %}<small>{{ plan.next }}</small>{% endif %}
+</div>
