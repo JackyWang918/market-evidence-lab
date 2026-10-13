@@ -17,6 +17,120 @@ def base():
 
 
 class ContinuationTests(SimpleTestCase):
+    def historical_context(self, last=90):
+        rows = [row(i, 9.9, 11, 10) for i in range(last+1)]
+        rows[20] = row(20, 6, 15, 10)
+        data = context(rows)
+        data.update(discovered_on=(START+timedelta(days=91)).isoformat(),
+                    anchor_date=(START+timedelta(days=89)).isoformat())
+        return data
+
+    def test_initialization_includes_confirmed_points_before_anchor_and_before_30_day_window(self):
+        result = build_continuation(self.historical_context())
+        for plan, level in zip(result["plans"], (15, 6)):
+            self.assertEqual(D(plan["zone"]["level"]), D(level))
+            self.assertEqual(plan["zone"]["anchor"], (START+timedelta(days=20)).isoformat())
+            self.assertTrue(plan["zone"]["confirmed"])
+
+    def test_starting_above_a_boundary_does_not_claim_first_breakout_on_discovery(self):
+        data = self.historical_context()
+        data["candles"][89] = row(89, 15.7, 16.5, 16)
+        data["candles"][90] = row(90, 15.7, 16.4, 16)
+        output = build_continuation(data)
+        plan = output["plans"][0]
+        self.assertTrue(plan["preexisting_break"])
+        self.assertEqual(plan["status"], "突破待站稳")
+        self.assertTrue(any("开始观察时已在边界外" in e["label"] for e in output["events"]))
+        self.assertFalse(any("首次收盘突破" in e["label"] for e in output["events"]))
+
+    def test_old_reference_survives_recent_window_and_atr_changes(self):
+        first = build_continuation(self.historical_context())
+        data = self.historical_context(130)
+        data["candles"][-1] = row(130, 8, 13, 10)
+        later = build_continuation(data)
+        for original, current in zip(first["plans"], later["plans"]):
+            self.assertEqual(current["zone"], original["zone"])
+            self.assertEqual(current["created_on"], original["created_on"])
+
+    def test_new_pivot_replaces_reference_only_after_confirmation_is_available(self):
+        data = self.historical_context(95)
+        data["candles"][92] = row(92, 8, 14, 10)
+        early = deepcopy(data)
+        early["cutoff"] = (START+timedelta(days=94)).isoformat()
+        before = build_continuation(early)
+        after = build_continuation(data)
+        self.assertEqual(D(before["plans"][0]["zone"]["level"]), D(15))
+        self.assertEqual(D(before["plans"][1]["zone"]["level"]), D(6))
+        for plan, level in zip(after["plans"], (14, 8)):
+            self.assertEqual(D(plan["zone"]["level"]), D(level))
+            self.assertEqual(plan["zone"]["available"], (START+timedelta(days=94)).isoformat())
+
+    def test_confirmed_breakout_advances_to_new_higher_high_without_returning_to_old_zone(self):
+        rows = base()+[row(20, 12.1, 12.6, 12.3), row(21, 12.2, 12.7, 12.4),
+                       row(22, 13, 14, 13.5), row(23, 12.8, 13.3, 13.1),
+                       row(24, 12.9, 13.3, 13.2), row(25, 13, 13.7, 13.5)]
+        old = build_continuation(context(rows[:25]))
+        self.assertEqual(old["plans"][0]["zone"]["level"], "11")
+        self.assertIsNotNone(old["plans"][0]["confirmed_on"])
+        self.assertEqual(D(old["plans"][0]["next_candidate"]["level"]), D(14))
+        updated = build_continuation(context(rows))
+        plan = updated["plans"][0]
+        self.assertEqual(D(plan["zone"]["level"]), D(14))
+        self.assertEqual(plan["zone"]["anchor"], row(22, 1, 2, 1)["time"])
+        self.assertEqual(plan["created_on"], row(25, 1, 2, 1)["time"])
+        self.assertEqual(plan["status"], "等待向上突破")
+        self.assertTrue(any("原区间" in event["label"] for event in updated["events"]))
+
+    def test_unconfirmed_new_high_is_shown_as_candidate_without_moving_formal_zone(self):
+        rows = base()+[row(20, 12.1, 12.6, 12.3), row(21, 12.2, 12.7, 12.4)]
+        result = build_continuation(context(rows))
+        plan = result["plans"][0]
+        self.assertEqual(D(plan["zone"]["level"]), D(11))
+        self.assertEqual(D(plan["next_candidate"]["level"]), D("12.7"))
+        self.assertFalse(plan["next_candidate"]["confirmed"])
+        self.assertIn("候选区间暂不作为正式突破条件", plan["next"])
+
+    def test_confirmed_breakdown_advances_to_new_lower_low(self):
+        rows = base()+[row(20, 8.6, 9, 8.8), row(21, 8.5, 8.9, 8.7),
+                       row(22, 7, 8.3, 7.5), row(23, 8, 8.5, 8.2),
+                       row(24, 8, 8.6, 8.3), row(25, 7.9, 8.5, 8.2)]
+        updated = build_continuation(context(rows))
+        plan = updated["plans"][1]
+        self.assertEqual(D(plan["zone"]["level"]), D(7))
+        self.assertEqual(plan["created_on"], row(25, 1, 2, 1)["time"])
+        self.assertEqual(plan["status"], "等待向下跌破")
+
+    def test_incremental_state_matches_full_replay_including_confirmation_and_failure(self):
+        rows = base()+[row(20, 12.1, 12.6, 12.3), row(21, 12.2, 12.7, 12.4),
+                       row(22, 12.3, 12.8, 12.5), row(23, 10, 12, 10.5), row(24, 10, 11, 10.5)]
+        previous = None
+        for count in range(21, len(rows)+1):
+            data = context(rows[:count])
+            expected = build_continuation(data)
+            incremental = build_continuation(data, previous=previous)
+            self.assertEqual(incremental, expected)
+            previous = incremental
+
+    def test_incremental_and_full_replay_agree_when_higher_level_is_confirmed(self):
+        rows = base()+[row(20, 12.1, 12.6, 12.3), row(21, 12.2, 12.7, 12.4),
+                       row(22, 13, 14, 13.5), row(23, 12.8, 13.3, 13.1),
+                       row(24, 12.9, 13.3, 13.2), row(25, 13, 13.7, 13.5)]
+        previous = None
+        for count in range(21, len(rows)+1):
+            data = context(rows[:count])
+            previous = build_continuation(data, previous=previous)
+            self.assertEqual(previous, build_continuation(data))
+
+    def test_revised_earlier_inputs_and_older_versions_force_recalculation(self):
+        data = self.historical_context()
+        previous = build_continuation(data)
+        changed = self.historical_context(91)
+        changed["candles"][20] = row(20, 5, 16, 10)
+        self.assertEqual(build_continuation(changed, previous=previous), build_continuation(changed))
+        old = deepcopy(previous)
+        old["version"] = "continuation-trial-v1"
+        self.assertEqual(build_continuation(changed, previous=old), build_continuation(changed))
+
     def test_high_and_low_have_independent_boundaries(self):
         plans = build_continuation(context(base()+[row(20, 10, 11, 10.5)]))["plans"]
         self.assertEqual(D(plans[0]["zone"]["level"]), D(11))
@@ -119,6 +233,12 @@ class ContinuationTests(SimpleTestCase):
         original["continuation"] = deepcopy(shown["continuation"])
         original["continuation"]["provenance"] = "saved"
         self.assertEqual(present_structure(original)["continuation"]["provenance"], "saved")
+        original["continuation"]["version"] = "continuation-trial-v1"
+        saved = deepcopy(original)
+        shown = present_structure(original)
+        self.assertEqual(shown["continuation"]["version"], VERSION)
+        self.assertEqual(shown["continuation"]["provenance"], "recomputed")
+        self.assertEqual(original, saved)
 
 
 class ContinuationPublicationTests(TestCase):

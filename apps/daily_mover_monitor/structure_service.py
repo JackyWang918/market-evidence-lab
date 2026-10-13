@@ -30,7 +30,8 @@ def observe(watch, day, rows, *, ranked=False):
     result["discovered_on"] = watch.discovered_on.isoformat()
     result["dropout_days"] = (day-watch.last_ranked_on).days if not ranked else 0
     result["attention"] = build_attention(result)
-    result["continuation"] = build_continuation(result)
+    previous = watch.observations.filter(as_of_date__lt=day, rule_version=VERSION).first()
+    result["continuation"] = build_continuation(result, previous=previous.result.get("continuation") if previous else None)
     serialized = json.dumps(result, ensure_ascii=False, sort_keys=True)
     with transaction.atomic():
         observation, _ = StructureObservation.objects.get_or_create(

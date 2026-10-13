@@ -7,14 +7,16 @@
 <div class="dm-detail-grid dm-attention-grid">
 {% for plan in structure.continuation.plans %}<section class="dm-panel dm-attention-card dm-attention-{{ plan.direction }}">
     <div class="dm-section-head"><h2>{{ plan.name }}</h2><span class="dm-structure-state">{{ plan.status }}</span></div>
-    <p class="dm-meta">{% if plan.direction == 'long' %}高点 / 平台上沿边界{% else %}低点 / 平台下沿边界{% endif %}</p>
+    <p class="dm-meta">{% if plan.next_candidate %}{% if plan.direction == 'long' %}下一道新高{% else %}下一道新低{% endif %}候选区间{% else %}{% if plan.direction == 'long' %}高点 / 平台上沿边界{% else %}低点 / 平台下沿边界{% endif %}{% endif %}</p>
     {% include 'daily_mover_monitor/_attention_zone.html' with hide_status=True %}
     <p class="dm-plan-next">{{ plan.next }}</p>
     <dl class="dm-facts">
-        <div><dt>收盘需要{% if plan.direction == 'long' %}高于{% else %}低于{% endif %}</dt><dd>{{ plan.boundary|floatformat:8|default:'依据不足' }}<small>连续 2 根完整日 K 收盘留在边界外确认</small></dd></div>
+        <div><dt>判断日收盘价</dt><dd>{{ structure.continuation.last_close|floatformat:8 }}{% if plan.broken_on %}<small>已越过本方向的旧参考区；这里展示的是已突破的历史边界，下一道门槛须等新结构确认</small>{% endif %}</dd></div>
+        <div><dt>{% if plan.next_candidate %}下一候选区上沿 / 下沿{% else %}收盘需要{% if plan.direction == 'long' %}高于{% else %}低于{% endif %}{% endif %}</dt><dd>{% if plan.next_candidate %}{% if plan.direction == 'long' %}{{ plan.next_candidate.high|floatformat:8 }}{% else %}{{ plan.next_candidate.low|floatformat:8 }}{% endif %}<small>候选高低点确认后，下一日才可建立正式突破边界</small>{% else %}{{ plan.boundary|floatformat:8|default:'依据不足' }}<small>连续 2 根完整日 K 收盘留在边界外确认</small>{% endif %}</dd></div>
+        {% if plan.next_candidate %}<div><dt>已突破的原区间</dt><dd>{{ plan.zone.low|floatformat:8 }}–{{ plan.zone.high|floatformat:8 }}<small>原判断和事件保留</small></dd></div>{% endif %}
         <div><dt>连续保持天数</dt><dd>{{ plan.outside_days|default:'0' }} 日</dd></div>
         <div><dt>{% if plan.direction == 'long' %}高位{% else %}低位{% endif %}横盘范围</dt><dd>{% if plan.sideways %}{{ plan.sideways.low|floatformat:8 }}–{{ plan.sideways.high|floatformat:8 }}<small>{{ plan.sideways.start }} 至 {{ plan.sideways.end }} · 影线宽度 {{ plan.sideways.width_pct|floatformat:2 }}% · 收盘跨度 {{ plan.sideways.close_span_pct|floatformat:2 }}%</small>{% else %}尚未满足边界外横盘条件{% endif %}</dd></div>
-        <div><dt>首次越界 / 站稳确认 / 未守住日期</dt><dd>{{ plan.broken_on|default:'—' }} / {{ plan.confirmed_on|default:'—' }} / {{ plan.failed_on|default:'—' }}<small>对应 UTC 日 K 日期</small></dd></div>
+        <div><dt>观察期内越界 / 站稳确认 / 未守住日期</dt><dd>{{ plan.broken_on|default:'—' }} / {{ plan.confirmed_on|default:'—' }} / {{ plan.failed_on|default:'—' }}<small>对应 UTC 日 K 日期；开始观察时可能已越界</small></dd></div>
         <div><dt>{% if plan.direction == 'long' %}最近回踩守住{% else %}最近反抽未收复{% endif %}</dt><dd>{{ plan.retest_on|default:'尚无' }}</dd></div>
     </dl>
     <details class="dm-evidence"><summary>查看本方向的计算依据</summary><dl class="dm-facts">{% for evidence in plan.evidence %}<div><dt>{{ evidence.label }}</dt><dd>{{ evidence.value }}</dd></div>{% endfor %}</dl></details>
@@ -23,5 +25,5 @@
 <p class="dm-method">向上延续看收盘越过高点区域后，能否站稳、回踩守住或在更高位置横盘；向下延续看收盘跌破低点区域后，能否保持、反抽未收复或在更低位置横盘。这些价格是趋势观察边界，不计算入场、止损或价格空间 R。</p>
 <details class="dm-panel dm-evidence"><summary>查看延续事件和试用规则</summary>
     <ol class="dm-event-list">{% for event in structure.continuation.events %}<li><time>{{ event.date }}</time><span>{{ event.label }}</span></li>{% empty %}<li>尚无越界事件。</li>{% endfor %}</ol>
-    <p class="dm-meta">优先使用此前已确认平台的上下沿，否则分别取最近已确认日线高点和低点；高低点需要左右各 2 根日 K 确认。没有已确认拐点时使用本轮最高 / 最低价并标注待验证。宽度使用此前 14 根真实波幅简单平均值的 0.25 倍，单侧限制为参考价的 0.5%～3%。首次收盘越界后边界冻结；连续 2 日收盘留在外侧确认站稳。横盘检查最近 3 根日 K，影线总宽度≤12%、收盘跨度≤8%，且整个价格范围都位于边界外。收盘返回边界内标注未守住，下一根 K 重新建立观察边界。参数为试用口径。</p>
+    <p class="dm-meta">优先使用此前已确认平台的上下沿，首次初始化使用最多 90 根此前完整日 K，分别取最近已确认日线高点和低点，不受上榜日期或启动锚点限制；高低点需要左右各 2 根日 K 确认。没有已确认拐点时使用初始化历史最高 / 最低价并标注待验证。后续每日扫描近期 30 根日 K 中新确认的拐点；原参考位及宽度保留；突破确认后旧边界冻结，等新的更高高点或更低低点确认，才建立下一段观察区，并保留旧突破事件。宽度使用此前 14 根真实波幅简单平均值的 0.25 倍，单侧限制为参考价的 0.5%～3%。首次收盘越界后边界冻结；连续 2 日收盘留在外侧确认站稳。横盘检查最近 3 根日 K，影线总宽度≤12%、收盘跨度≤8%，且整个价格范围都位于边界外。收盘返回边界内标注未守住，下一根 K 重新建立观察边界。参数为试用口径。</p>
 </details>

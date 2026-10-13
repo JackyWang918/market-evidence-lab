@@ -1,6 +1,6 @@
 <div class="dm-attention-zone dm-attention-{{ plan.direction }}{% if plan.status == '已失效' %} is-invalid{% endif %}">
-    <strong>{% if plan.zone %}{{ plan.zone.low|floatformat:8 }}–{{ plan.zone.high|floatformat:8 }}{% else %}依据不足{% endif %}</strong>
+    <strong>{% if plan.next_candidate %}{{ plan.next_candidate.low|floatformat:8 }}–{{ plan.next_candidate.high|floatformat:8 }}{% elif plan.zone %}{{ plan.zone.low|floatformat:8 }}–{{ plan.zone.high|floatformat:8 }}{% else %}依据不足{% endif %}</strong>
     {% if not hide_status %}<span>{{ plan.name }} · {{ plan.status }}</span>{% endif %}
-    {% if plan.zone %}<small>{{ plan.zone.basis }}{% if plan.status == '已失效' %} · 原区域已失效{% endif %}</small>{% else %}<small>{{ plan.next }}</small>{% endif %}
+    {% if plan.next_candidate %}<small>{% if plan.direction == 'long' %}新高{% else %}新低{% endif %}候选 · {% if plan.next_candidate.confirmed %}已确认，待下一日建立正式区间{% else %}待验证，尚非正式突破价{% endif %}</small><small>已越过的旧参考区 {{ plan.zone.low|floatformat:8 }}–{{ plan.zone.high|floatformat:8 }}</small>{% elif plan.zone %}<small>{{ plan.zone.basis }}{% if plan.failed_on %} · 原区域未守住{% elif plan.broken_on %} · 已越过的历史参考区{% endif %}</small>{% else %}<small>{{ plan.next }}</small>{% endif %}
     {% if plan.sideways %}<small>{% if plan.direction == 'long' %}高位{% else %}低位{% endif %}横盘：{{ plan.sideways.low|floatformat:8 }}–{{ plan.sideways.high|floatformat:8 }}</small>{% endif %}
 </div>

@@ -21,7 +21,7 @@
         <div class="dm-chart-tools">
             <p class="dm-chart-hint">鼠标移入查看日期与开高低收，虚线显示指针价格；手机可点选，键盘左右键切换日 K。</p>
             <dl class="dm-chart-legend dm-continuation-legend" aria-label="所选日期的趋势延续价格区间">
-                {% for plan in structure.continuation.plans %}{% if plan.zone %}<div class="dm-band-{{ plan.direction }}"><dt><span aria-hidden="true"></span>{{ plan.name }}</dt><dd>{{ plan.zone.low|floatformat:8 }}–{{ plan.zone.high|floatformat:8 }}</dd></div>{% endif %}{% endfor %}
+                {% for plan in structure.continuation.plans %}{% if plan.zone %}<div class="dm-band-{{ plan.direction }}"><dt><span aria-hidden="true"></span>{{ plan.name }}{% if plan.next_candidate %} · 候选待验证{% elif plan.broken_on %} · 已越过{% endif %}</dt><dd>{% if plan.next_candidate %}{{ plan.next_candidate.low|floatformat:8 }}–{{ plan.next_candidate.high|floatformat:8 }}{% else %}{{ plan.zone.low|floatformat:8 }}–{{ plan.zone.high|floatformat:8 }}{% endif %}</dd></div>{% endif %}{% endfor %}
             </dl>
             {% if structure.platform %}<dl class="dm-chart-legend" aria-label="平台上下沿参考价格">
                 <div><dt><span aria-hidden="true"></span>平台上沿</dt><dd>{{ structure.platform.high|floatformat:8 }}</dd></div>
@@ -29,7 +29,7 @@
                 {% if structure.state == '平台失效' %}<div class="dm-chart-legend-invalid"><dt>原平台</dt><dd>已失效</dd></div>{% endif %}
             </dl>{% endif %}
         </div>
-        <p class="dm-chart-hint">绿色色带为向上延续区间，红色色带为向下延续区间；虚线标出各区间上下沿。色带展示所选日期的参考边界，方便与历史价格比较，不代表此前每日的边界。{% if structure.continuation.provenance == 'recomputed' %}区间按留存日 K 回算。{% endif %}</p>
+        <p class="dm-chart-hint">绿色色带为向上延续区间，红色色带为向下延续区间；虚线标出各区间上下沿。标为「候选待验证」的色带由新高/新低推算，尚非正式突破条件；旧区间和确认事件在详情中保留。色带展示所选日期的参考边界，不代表此前每日的边界。{% if structure.continuation.provenance == 'recomputed' %}区间按留存日 K 回算。{% endif %}</p>
         <div class="dm-chart-wrap">
             <canvas id="dm-candles" height="360" tabindex="0" role="img" aria-label="{{ entry.symbol }} 日 K 与向上、向下延续价格区间，可用左右方向键查看日 K" aria-describedby="dm-chart-tooltip"></canvas>
             <div id="dm-chart-tooltip" class="dm-chart-tooltip" role="status" hidden></div>
@@ -52,4 +52,4 @@
         </section>
     </div>{% endif %}
 </div>{% endblock %}
-{% block extra_js %}<script src="{% static 'daily_mover_monitor/chart.js' %}?v=continuation-1" defer></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'daily_mover_monitor/chart.js' %}?v=continuation-3" defer></script>{% endblock %}

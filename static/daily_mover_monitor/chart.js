@@ -15,7 +15,8 @@
     const bands = (continuationSource ? JSON.parse(continuationSource.textContent) : [])
         .filter(plan => plan.zone)
         .map(plan => ({
-            name: plan.name, low: Number(plan.zone.low), high: Number(plan.zone.high),
+            name: plan.name, direction: plan.direction, broken: Boolean(plan.broken_on), candidate: Boolean(plan.next_candidate),
+            low: Number((plan.next_candidate || plan.zone).low), high: Number((plan.next_candidate || plan.zone).high),
             color: plan.direction === "long" ? "#18845f" : "#c24c4c",
             fill: plan.direction === "long" ? "rgba(35,149,109,.10)" : "rgba(217,101,101,.10)",
         }))
@@ -85,7 +86,7 @@
             ctx.fillRect(left, bandTop, right-left, Math.max(1, bandBottom-bandTop));
             ctx.strokeStyle = band.color;
             ctx.lineWidth = 1;
-            ctx.setLineDash([6, 4]);
+            ctx.setLineDash(band.candidate ? [2, 5] : [6, 4]);
             [bandTop, bandBottom].forEach(py => {
                 ctx.beginPath(); ctx.moveTo(left, py); ctx.lineTo(right, py); ctx.stroke();
             });
@@ -133,7 +134,8 @@
             .sort((a, b) => a.py-b.py);
         let previousLabelBottom = top-4;
         bandLabels.forEach((band, index) => {
-            const text = compact ? `本日${band.name}区间` : `本日${band.name} ${band.low.toFixed(8)}–${band.high.toFixed(8)}`;
+            const label = band.candidate ? `${band.name}${band.direction === "long" ? "新高" : "新低"}候选·待验证` : band.broken ? `已越过·${band.name}参考区` : `本日${band.name}区间`;
+            const text = compact ? label : `${label} ${band.low.toFixed(8)}–${band.high.toFixed(8)}`;
             ctx.font = `${compact ? 11 : 12}px system-ui, sans-serif`;
             const badgeWidth = Math.min(right-left-8, ctx.measureText(text).width+12);
             const remainingHeight = (bandLabels.length-index)*24;
