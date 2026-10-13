@@ -167,3 +167,24 @@ class StructureObservation(models.Model):
 
     def delete(self, *args, **kwargs):
         raise RuntimeError("已发布的结构判断不可删除")
+
+
+class DailyMoverDigest(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "待发送"
+        SENDING = "sending", "发送中"
+        SENT = "sent", "已发送"
+        REJECTED = "rejected", "被拒绝"
+        UNKNOWN = "unknown", "发送结果待核对"
+        NOT_CONFIGURED = "not_configured", "未配置"
+
+    snapshot = models.OneToOneField(
+        DailyMoverSnapshot, on_delete=models.PROTECT, related_name="digest"
+    )
+    content = models.TextField()
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    error_summary = models.CharField(max_length=300, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)

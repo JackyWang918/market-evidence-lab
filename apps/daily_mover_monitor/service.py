@@ -33,7 +33,8 @@ def scan(
         raise ValueError("须在北京时间 08:20 后扫描上一根完整日 K")
     existing = DailyMoverSnapshot.objects.filter(as_of_date=day).first()
     if existing:
-        _update_structures(day, client)
+        if _update_structures(day, client):
+            _send_report(existing)
         return existing
     with transaction.atomic():
         run, created = DailyMoverRun.objects.select_for_update().get_or_create(
@@ -147,7 +148,8 @@ def scan(
             run.candidate_count = len(candidates)
             run.excluded_depth_count = excluded
             run.save(update_fields=["status", "finished_at", "scanned_count", "candidate_count", "excluded_depth_count"])
-        _update_structures(day, source)
+        if _update_structures(day, source):
+            _send_report(snapshot)
         return snapshot
     except Exception as exc:
         DailyMoverRun.objects.filter(as_of_date=day).update(
@@ -169,9 +171,26 @@ def _update_structures(day, client):
         _, errors = update_official(day, client=client)
         if errors:
             _retry_structures(day)
+            return False
     except Exception as exc:
         logging.getLogger(__name__).warning("结构观察未完成: %s", type(exc).__name__)
         _retry_structures(day)
+        return False
+    return True
+
+
+def _send_report(snapshot):
+    import logging
+    from .models import DailyMoverDigest
+    from .report import MAX_ATTEMPTS, send_digest
+
+    try:
+        digest = send_digest(snapshot)
+        if digest.status == DailyMoverDigest.Status.REJECTED and digest.attempts < MAX_ATTEMPTS:
+            _retry_structures(snapshot.as_of_date)
+    except Exception as exc:
+        logging.getLogger(__name__).warning("异动简报未完成: %s", type(exc).__name__)
+        _retry_structures(snapshot.as_of_date)
 
 
 def _retry_structures(day):

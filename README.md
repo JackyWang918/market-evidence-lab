@@ -123,6 +123,17 @@ uv run --env-file .env python manage.py run_scheduler
 uv run --env-file .env python manage.py scan_daily_movers
 ```
 
+正式榜单和当日结构观察完成后，调度器会生成一份最多 5 条的异动简报，提取新突破、
+站稳、明显回撤或排名下滑及靠前新入榜等变化。企业微信机器人地址仅保存在主机的
+`DAILY_MOVER_WECHAT_WEBHOOK_URL` 环境变量中。每个正式榜单只保存一份报告；
+已发送的报告不会因调度重试重复推送。网络超时等送达结果不明的情况会暂停自动
+重发，待人工核对。预览和手动发送最新正式日报分别使用：
+
+```bash
+uv run --env-file .env python manage.py send_daily_mover_report --dry-run
+uv run --env-file .env python manage.py send_daily_mover_report
+```
+
 规则使用最近 5 / 7 根完整日 K 的区间最低价和最高价，要求低点所在 K 早于
 高点所在 K，5 日涨幅至少 50%、7 日涨幅至少 80%；最新收盘价比 10 天前
 收盘价至少高 20%。双信号显示为 `5D+7D`。

@@ -154,6 +154,13 @@ class FakeSource:
 
 
 class SnapshotTests(TestCase):
+    @patch("apps.daily_mover_monitor.service._send_report")
+    @patch("apps.daily_mover_monitor.service._update_structures", return_value=True)
+    def test_scan_sends_after_structure_update(self, update_structures, send_report):
+        snapshot = scan(DAY, client=FakeSource(), now=SCAN_TIME)
+        update_structures.assert_called_once()
+        send_report.assert_called_once_with(snapshot)
+
     def test_scan_saves_ranked_snapshot_and_reuses_it(self):
         source = FakeSource(thin=True)
         snapshot = scan(DAY, client=source, now=SCAN_TIME)
