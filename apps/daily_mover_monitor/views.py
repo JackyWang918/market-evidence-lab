@@ -170,6 +170,7 @@ def detail(request, symbol: str):
 @require_GET
 def watchlist(request):
     origin = "replay" if request.GET.get("origin") == "replay" else "official"
+    archive = request.GET.get("archive") == "1"
     latest = StructureObservation.objects.filter(watch__origin=origin, rule_version=VERSION).first()
     day = _parse_day(request.GET.get("date")) or (latest.as_of_date if latest else today_in_shanghai())
     query = request.GET.get("symbol", "").strip().upper()[:30]
@@ -184,7 +185,7 @@ def watchlist(request):
     for watch in watches:
         observation = observations.get(watch.pk)
         ended = bool(watch.ended_on and watch.ended_on <= day)
-        if ended and request.GET.get("archive") != "1":
+        if ended != archive:
             continue
         if request.GET.get("dropped") == "1" and observation and observation.result.get("ranked"):
             continue
@@ -193,6 +194,6 @@ def watchlist(request):
                      "structure": present_structure(observation.result if observation else unavailable("等待采集结构日 K", day-timedelta(days=1)))})
     return render(request, "daily_mover_monitor/watchlist.html", {
         "rows": rows, "origin": origin, "selected_day": day,
-        "archive": request.GET.get("archive") == "1",
+        "archive": archive,
         "symbol_query": query, "dropped": request.GET.get("dropped") == "1",
     })

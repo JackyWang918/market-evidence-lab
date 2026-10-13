@@ -157,6 +157,45 @@ class CausalStructureTests(SimpleTestCase):
         self.assertIsNone(evaluate(rows)["plans"][1]["pressure"])
 
 
+class WatchlistStatusFilterTests(TestCase):
+    def setUp(self):
+        self.day = START+timedelta(days=9)
+        for symbol, stopped in (("BTWUSDT", False), ("ENDEDUSDT", True)):
+            watch = StructureWatch.objects.create(
+                symbol=symbol, quote_asset="USDT", origin="official",
+                discovered_on=START+timedelta(days=7), last_ranked_on=self.day,
+                anchor_date=START, anchor_price=10,
+                ended_on=self.day if stopped else None,
+                end_reason="测试停止原因" if stopped else "",
+            )
+            observe(watch, self.day, platform_rows()+[
+                row(START+timedelta(days=i), 19, 21, 20) for i in (7, 8)
+            ], ranked=not stopped)
+
+    def test_default_only_shows_ongoing_watches(self):
+        response = self.client.get(reverse("daily_mover_monitor:watchlist"), {"date": self.day.isoformat()})
+        self.assertEqual([r["watch"].symbol for r in response.context["rows"]], ["BTWUSDT"])
+        self.assertContains(response, "在榜跟踪中")
+        self.assertNotContains(response, "ENDEDUSDT")
+
+    def test_stopped_filter_excludes_in_board_active_symbol(self):
+        response = self.client.get(reverse("daily_mover_monitor:watchlist"), {"date": self.day.isoformat(), "archive": "1"})
+        self.assertEqual([r["watch"].symbol for r in response.context["rows"]], ["ENDEDUSDT"])
+        self.assertNotContains(response, "BTWUSDT")
+        self.assertContains(response, "已停止跟踪")
+        self.assertNotContains(response, "数据待更新")
+        combined = self.client.get(reverse("daily_mover_monitor:watchlist"), {"date": self.day.isoformat(), "archive": "1", "dropped": "1"})
+        self.assertEqual([r["watch"].symbol for r in combined.context["rows"]], ["ENDEDUSDT"])
+
+    def test_stopped_state_is_relative_to_selected_date(self):
+        historical = (self.day-timedelta(days=1)).isoformat()
+        active = self.client.get(reverse("daily_mover_monitor:watchlist"), {"date": historical})
+        self.assertEqual(len(active.context["rows"]), 2)
+        stopped = self.client.get(reverse("daily_mover_monitor:watchlist"), {"date": historical, "archive": "1"})
+        self.assertEqual(stopped.context["rows"], [])
+        self.assertContains(stopped, "没有符合筛选条件的跟踪记录")
+
+
 class StructurePersistenceTests(TestCase):
     def setUp(self):
         self.day = START+timedelta(days=7)
