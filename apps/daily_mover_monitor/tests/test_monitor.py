@@ -178,7 +178,7 @@ class SnapshotTests(TestCase):
         self.assertContains(board, 'class="dm-mobile-list"')
         self.assertContains(board, 'class="dm-tab-short"')
         detail = self.client.get(reverse("daily_mover_monitor:detail", args=["FIVEUSDT"]), {"date": DAY.isoformat()})
-        self.assertContains(detail, "日 K 与上涨区间")
+        self.assertContains(detail, "日 K 与趋势延续边界")
         history = self.client.get(reverse("daily_mover_monitor:history"))
         self.assertContains(history, "历史日期")
 

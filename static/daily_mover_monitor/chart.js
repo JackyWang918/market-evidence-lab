@@ -3,6 +3,7 @@
     const source = document.getElementById("dm-candle-data");
     const meta = document.getElementById("dm-chart-meta");
     const tooltip = document.getElementById("dm-chart-tooltip");
+    const continuationSource = document.getElementById("dm-continuation-data");
     if (!canvas || !source || !meta || !tooltip) return;
     const rows = JSON.parse(source.textContent).map((item) => ({
         ...item,
@@ -11,6 +12,14 @@
         low: Number(item.low), close: Number(item.close),
     }));
     if (!rows.length) return;
+    const bands = (continuationSource ? JSON.parse(continuationSource.textContent) : [])
+        .filter(plan => plan.zone)
+        .map(plan => ({
+            name: plan.name, low: Number(plan.zone.low), high: Number(plan.zone.high),
+            color: plan.direction === "long" ? "#18845f" : "#c24c4c",
+            fill: plan.direction === "long" ? "rgba(35,149,109,.10)" : "rgba(217,101,101,.10)",
+        }))
+        .filter(band => Number.isFinite(band.low) && Number.isFinite(band.high) && band.low > 0 && band.high >= band.low);
     let geometry = null;
     let hover = null;
     let frame = null;
@@ -53,8 +62,8 @@
         const right = width - (compact ? 8 : 18);
         const top = 24;
         const bottom = height - 38;
-        const min = Math.min(...rows.map((row) => row.low)) * .94;
-        const max = Math.max(...rows.map((row) => row.high)) * 1.06;
+        const min = Math.min(...rows.map((row) => row.low), ...bands.map(band => band.low)) * .94;
+        const max = Math.max(...rows.map((row) => row.high), ...bands.map(band => band.high)) * 1.06;
         const y = (value) => bottom - (value - min) / (max - min) * (bottom - top);
         const x = (index) => left + (index + .5) * (right - left) / rows.length;
         geometry = {width, height, left, right, top, bottom, min, max};
@@ -69,6 +78,19 @@
             ctx.textAlign = "right";
             ctx.fillText(value.toPrecision(compact ? 3 : 4), left - 7, py + 4);
         }
+        bands.forEach(band => {
+            const bandTop = y(band.high);
+            const bandBottom = y(band.low);
+            ctx.fillStyle = band.fill;
+            ctx.fillRect(left, bandTop, right-left, Math.max(1, bandBottom-bandTop));
+            ctx.strokeStyle = band.color;
+            ctx.lineWidth = 1;
+            ctx.setLineDash([6, 4]);
+            [bandTop, bandBottom].forEach(py => {
+                ctx.beginPath(); ctx.moveTo(left, py); ctx.lineTo(right, py); ctx.stroke();
+            });
+            ctx.setLineDash([]);
+        });
         rows.forEach((row, index) => {
             const px = x(index);
             const color = row.close >= row.open ? "#23956d" : "#d96565";
@@ -106,6 +128,23 @@
                 ctx.setLineDash([]);
             });
         }
+        // Label the selected day's boundaries, rather than implying a historical signal.
+        const bandLabels = bands.map(band => ({...band, py: y((band.low+band.high)/2)}))
+            .sort((a, b) => a.py-b.py);
+        let previousLabelBottom = top-4;
+        bandLabels.forEach((band, index) => {
+            const text = compact ? `本日${band.name}区间` : `本日${band.name} ${band.low.toFixed(8)}–${band.high.toFixed(8)}`;
+            ctx.font = `${compact ? 11 : 12}px system-ui, sans-serif`;
+            const badgeWidth = Math.min(right-left-8, ctx.measureText(text).width+12);
+            const remainingHeight = (bandLabels.length-index)*24;
+            const labelTop = Math.max(previousLabelBottom+4, Math.min(bottom-remainingHeight, Math.max(top, band.py-11)));
+            ctx.fillStyle = "rgba(255,255,255,.94)";
+            ctx.fillRect(left+4, labelTop, badgeWidth, 20);
+            ctx.fillStyle = band.color;
+            ctx.textAlign = "left";
+            ctx.fillText(text, left+10, labelTop+14, Math.max(1, badgeWidth-12));
+            previousLabelBottom = labelTop+20;
+        });
         if (!hover) {
             tooltip.hidden = true;
             return;

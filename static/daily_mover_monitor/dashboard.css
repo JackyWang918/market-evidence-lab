@@ -231,4 +231,7 @@
 .dm-chart-legend dt span{width:20px;border-top:1px dashed #315bce}
 .dm-chart-legend dd{margin:0;font-variant-numeric:tabular-nums}
 .dm-chart-legend-invalid{color:#b45454}
+.dm-continuation-legend .dm-band-long{color:#18845f}
+.dm-continuation-legend .dm-band-short{color:#c24c4c}
+.dm-continuation-legend dt span{height:8px;border:1px dashed currentColor;background:currentColor;opacity:.55}
 @media(max-width:600px){.dm-chart-tools{flex-direction:column;align-items:stretch}.dm-chart-legend{align-self:flex-end}}
