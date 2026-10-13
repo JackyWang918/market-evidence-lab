@@ -74,7 +74,8 @@ class DigestTests(TestCase):
     def test_digest_uses_changes_and_official_data_only(self):
         content = build_digest(self.current)
         self.assertIn("GTCUSDT", content)
-        self.assertIn("[GTCUSDT](https://www.binance.com/en/futures/GTCUSDT_PERPETUAL)", content)
+        self.assertIn("GTCUSDT：", content)
+        self.assertNotIn("https://www.binance.com", content)
         self.assertIn("向上突破待站稳", content)
         self.assertIn("STRKUSDT", content)
         self.assertIn("#1→#11", content)

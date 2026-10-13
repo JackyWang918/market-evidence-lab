@@ -1,7 +1,6 @@
 """Short, dated attention digest built only from official daily records."""
 
 from datetime import timedelta
-from urllib.parse import quote
 
 import httpx
 from django.conf import settings
@@ -26,11 +25,6 @@ NOTABLE_STATUSES = {
     "高位横盘": (3, "上侧边界外形成高位横盘"),
     "低位横盘": (3, "下侧边界外形成低位横盘"),
 }
-
-
-def _symbol_link(symbol: str) -> str:
-    contract = quote(f"{symbol}_PERPETUAL", safe="")
-    return f"[{symbol}](https://www.binance.com/en/futures/{contract})"
 
 
 def _plans(observation):
@@ -73,7 +67,7 @@ def build_digest(snapshot: DailyMoverSnapshot) -> str:
                 changes.append((priority, description))
         if changes:
             priority, description = min(changes)
-            structure.append((priority, entry.rank, entry.symbol, f"{_symbol_link(entry.symbol)}：{description}。"))
+            structure.append((priority, entry.rank, entry.symbol, f"{entry.symbol}：{description}。"))
 
         prior = prior_entries.get(entry.symbol)
         if prior:
@@ -87,7 +81,7 @@ def build_digest(snapshot: DailyMoverSnapshot) -> str:
                     details.append(f"回撤首次超过 30%，现为 {entry.drawdown_pct:.1f}%")
                 elif rank_drop >= 5:
                     details.append(f"距高点回撤 {entry.drawdown_pct:.1f}%")
-                risk.append((-rank_drop, entry.rank, entry.symbol, f"{_symbol_link(entry.symbol)}：{'；'.join(details)}。"))
+                risk.append((-rank_drop, entry.rank, entry.symbol, f"{entry.symbol}：{'；'.join(details)}。"))
         elif entry.rank <= 10:
             pending = next((
                 NOTABLE_STATUSES[plan.get("status")][1]
@@ -97,7 +91,7 @@ def build_digest(snapshot: DailyMoverSnapshot) -> str:
             detail = (f"；{pending}" if pending else "")
             label = "新入榜" if previous else "首次正式榜单"
             newcomers.append((0 if pending else 1, entry.rank, entry.symbol,
-                             f"{_symbol_link(entry.symbol)}：{label}第 {entry.rank}，{entry.signal}，"
+                             f"{entry.symbol}：{label}第 {entry.rank}，{entry.signal}，"
                              f"区间涨幅 {entry.rise_pct:.1f}%，回撤 {entry.drawdown_pct:.1f}%{detail}。"))
 
     selected = []
