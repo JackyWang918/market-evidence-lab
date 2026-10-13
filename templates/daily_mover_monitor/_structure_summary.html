@@ -1,7 +1,8 @@
 <div class="dm-structure-compact">
-    <strong class="dm-structure-state">{{ structure.attention.trend }}</strong>
-    {% for plan in structure.attention.plans %}
+    <strong class="dm-structure-state">{{ structure.continuation.trend }} · {{ structure.continuation.swing }}</strong>
+    {% for plan in structure.continuation.plans %}
         {% include 'daily_mover_monitor/_attention_zone.html' %}
         <span>{{ plan.next }}</span>
     {% endfor %}
+    {% if structure.continuation.provenance == 'recomputed' %}<small>新规则按留存日 K 回算</small>{% endif %}
 </div>

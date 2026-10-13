@@ -193,7 +193,7 @@ class SnapshotTests(TestCase):
         )
 
     @patch("apps.daily_mover_monitor.views.today_in_shanghai", return_value=DAY)
-    def test_homepage_omits_today_even_when_scan_exists(self, _):
+    def test_homepage_shows_latest_completed_scan_and_preserves_explicit_history(self, _):
         DailyMoverSnapshot.objects.create(
             as_of_date=DAY,
             candle_open_at=datetime(2026, 10, 11, tzinfo=UTC),
@@ -202,8 +202,11 @@ class SnapshotTests(TestCase):
             excluded_depth_count=0,
         )
         response = self.client.get(reverse("daily_mover_monitor:index"))
-        self.assertEqual(response.context["selected_day"], DAY - timedelta(days=1))
-        self.assertNotIn(DAY, response.context["recent_days"])
+        self.assertEqual(response.context["selected_day"], DAY)
+        self.assertIn(DAY, response.context["recent_days"])
+        self.assertEqual(response.context["price_day"], DAY-timedelta(days=1))
+        historical = self.client.get(reverse("daily_mover_monitor:index"), {"date": (DAY-timedelta(days=1)).isoformat()})
+        self.assertEqual(historical.context["selected_day"], DAY-timedelta(days=1))
 
     def test_scan_rejects_unclosed_day(self):
         with self.assertRaisesRegex(ValueError, "08:20"):

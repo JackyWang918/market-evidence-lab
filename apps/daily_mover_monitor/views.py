@@ -63,12 +63,15 @@ def _board_context(day: date, preview_data=None):
         snapshot = entries[0].snapshot if entries else None
     is_current_rule = snapshot is None or snapshot.rule_version == "daily-mover-v2"
     _attach_structures(entries, day)
+    today = today_in_shanghai()
+    first_offset = 0 if DailyMoverSnapshot.objects.filter(as_of_date=today).exists() else 1
     return {
         "selected_day": day,
         "snapshot": snapshot,
         "entries": entries,
         "preview_checked_at": snapshot.created_at if snapshot and getattr(snapshot, "preview", False) else None,
-        "recent_days": [today_in_shanghai() - timedelta(days=index) for index in range(8, 0, -1)],
+        "recent_days": [today - timedelta(days=index) for index in range(first_offset+7, first_offset-1, -1)],
+        "price_day": day - timedelta(days=1),
         "latest_snapshot": DailyMoverSnapshot.objects.first(),
         "min_depth": settings.DAILY_MOVER_MIN_SIDE_DEPTH,
         "max_spread": settings.DAILY_MOVER_MAX_SPREAD_BPS,
@@ -84,9 +87,9 @@ def index(request):
     today = today_in_shanghai()
     yesterday = today - timedelta(days=1)
     available_days = {preview_day for preview_day in preview_data[0] if preview_day <= yesterday} | set(
-        DailyMoverSnapshot.objects.filter(as_of_date__lte=yesterday).values_list("as_of_date", flat=True)
+        DailyMoverSnapshot.objects.filter(as_of_date__lte=today).values_list("as_of_date", flat=True)
     )
-    day = requested or (yesterday if yesterday in available_days else max(available_days, default=yesterday))
+    day = requested or max(available_days, default=yesterday)
     context = _board_context(day, preview_data)
     return render(request, "daily_mover_monitor/index.html", context)
 
@@ -159,6 +162,7 @@ def detail(request, symbol: str):
         "structure_stale": bool(observation and observation.as_of_date != day),
         "structure_candles": structure.get("candles", []),
         "structure_origin": origin,
+        "latest_symbol_day": DailyMoverEntry.objects.filter(symbol=entry.symbol, snapshot__as_of_date__lte=today_in_shanghai()).order_by("-snapshot__as_of_date").values_list("snapshot__as_of_date", flat=True).first(),
         "structure_history": StructureObservation.objects.filter(watch=observation.watch, as_of_date__lte=day, rule_version=VERSION).select_related("watch").order_by("-as_of_date")[:40] if observation else [],
     })
 

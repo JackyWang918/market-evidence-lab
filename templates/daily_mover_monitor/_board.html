@@ -10,15 +10,15 @@
 </nav>
 {% endif %}
 <div class="dm-status-strip" aria-label="榜单概况">
-    <div class="dm-status-date"><span>榜单</span><strong>{{ selected_day|date:"Y-m-d" }}</strong>{% if snapshot.preview %}<span class="dm-preview-tag" role="status" title="历史日 K 试算；盘口取自 {{ preview_checked_at|date:'Y-m-d H:i' }} 北京时间，不能代表历史当日盘口。">历史试算 · 非正式快照</span>{% endif %}</div>
+    <div class="dm-status-date"><span>榜单</span><strong>{{ selected_day|date:"Y-m-d" }}</strong><span>日 K 截至 {{ price_day|date:"Y-m-d" }} UTC 收盘</span>{% if snapshot.preview %}<span class="dm-preview-tag" role="status" title="历史日 K 试算；盘口取自 {{ preview_checked_at|date:'Y-m-d H:i' }} 北京时间，不能代表历史当日盘口。">历史试算 · 非正式快照</span>{% endif %}</div>
     <div class="dm-status-stats"><span>入榜 <strong>{{ entries|length }} / 30</strong></span><span>扫描 <strong>{% if snapshot %}{{ snapshot.scanned_count }}{% else %}—{% endif %}</strong></span><span>候选 <strong>{% if snapshot %}{{ snapshot.candidate_count }}{% else %}—{% endif %}</strong></span></div>
 </div>
 {% if snapshot %}
 <div class="dm-table-wrap"><table class="dm-table dm-ranking-table">
-    <thead><tr><th>排名</th><th>合约</th><th>信号</th><th>距高点回撤</th><th>区间涨幅</th><th>较 {{ comparison_days }} 天前</th><th>收盘价</th><th>连续入榜</th><th>排名变化</th><th>当前走势</th><th>多头注意力区间</th><th>空头注意力区间</th><th>下一步确认条件</th><th>价格空间 R</th></tr></thead>
+    <thead><tr><th>排名</th><th>合约</th><th>信号</th><th>距高点回撤</th><th>区间涨幅</th><th>较 {{ comparison_days }} 天前</th><th>收盘价</th><th>连续入榜</th><th>排名变化</th><th>当前走势</th><th>向上延续边界</th><th>向下延续边界</th><th>下一步确认条件</th><th>高低点结构</th></tr></thead>
     <tbody>{% for entry in entries %}<tr>
         <td><strong class="dm-rank">{{ entry.rank|stringformat:"02d" }}</strong></td>
-        <td><a class="dm-symbol" href="{% url 'daily_mover_monitor:detail' entry.symbol %}?date={{ selected_day|date:'Y-m-d' }}">{{ entry.symbol }}</a><small>{{ entry.quote_asset }} 永续 {% if entry.consecutive_days > 1 %}<span class="dm-streak-badge">{% if entry.streak_open_start %}至少{% endif %}连榜 {{ entry.consecutive_days }} 天</span>{% endif %}</small></td>
+        <td><a class="dm-symbol" target="_blank" rel="noopener noreferrer" href="{% url 'daily_mover_monitor:detail' entry.symbol %}?date={{ selected_day|date:'Y-m-d' }}">{{ entry.symbol }}</a><small>{{ entry.quote_asset }} 永续 {% if entry.consecutive_days > 1 %}<span class="dm-streak-badge">{% if entry.streak_open_start %}至少{% endif %}连榜 {{ entry.consecutive_days }} 天</span>{% endif %}</small></td>
         <td><span class="dm-signal">{{ entry.signal }}</span></td>
         <td><strong>{{ entry.drawdown_pct|floatformat:2 }}%</strong>{% if entry.drawdown_pct > 30 %}<span class="dm-drawdown-alert">高回撤</span>{% endif %}</td>
         <td class="dm-positive">+{{ entry.rise_pct|floatformat:1 }}%</td>
@@ -26,17 +26,17 @@
         <td>{{ entry.close|floatformat:8 }}</td>
         <td>{% if entry.streak_open_start %}至少 {% endif %}{{ entry.consecutive_days }} 天</td>
         <td>{% if entry.previous_rank %}{% if entry.rank_change > 0 %}<span class="dm-positive">↑ {{ entry.rank_change }} 位</span>{% elif entry.rank_change < 0 %}<span class="dm-negative">↓ {{ entry.rank_change_magnitude }} 位</span>{% else %}持平{% endif %}{% elif entry.previous_day_unknown %}前日无数据{% else %}新入榜{% endif %}</td>
-        <td><span class="dm-structure-state">{{ entry.structure.attention.trend }}</span></td>
-        {% for plan in entry.structure.attention.plans %}<td class="dm-attention-cell">{% include 'daily_mover_monitor/_attention_zone.html' %}</td>{% endfor %}
-        <td class="dm-trigger-cell">{% for plan in entry.structure.attention.plans %}<small>{{ plan.name }}：{{ plan.next }}</small>{% endfor %}</td>
-        <td>{% for plan in entry.structure.attention.plans %}<small>{{ plan.name }}：{% if plan.r %}触发日 {{ plan.r|floatformat:2 }}R{% else %}{{ plan.r_reason }}{% endif %}</small>{% endfor %}</td>
+        <td><span class="dm-structure-state">{{ entry.structure.continuation.trend }}</span></td>
+        {% for plan in entry.structure.continuation.plans %}<td class="dm-attention-cell">{% include 'daily_mover_monitor/_attention_zone.html' %}</td>{% endfor %}
+        <td class="dm-trigger-cell">{% for plan in entry.structure.continuation.plans %}<small>{{ plan.name }}：{{ plan.next }}</small>{% endfor %}{% if entry.structure.continuation.provenance == 'recomputed' %}<small>新规则按留存日 K 回算</small>{% endif %}</td>
+        <td>{{ entry.structure.continuation.swing }}</td>
     </tr>{% empty %}<tr><td colspan="14" class="dm-empty">今日没有合约满足全部条件。</td></tr>{% endfor %}</tbody>
 </table></div>
 <ol class="dm-mobile-list" aria-label="合约异动前 30 榜单">
     {% for entry in entries %}<li class="dm-mobile-row">
         <div class="dm-row-head">
             <span class="dm-row-rank">{{ entry.rank|stringformat:"02d" }}</span>
-            <div class="dm-row-symbol"><a href="{% url 'daily_mover_monitor:detail' entry.symbol %}?date={{ selected_day|date:'Y-m-d' }}">{{ entry.symbol }} <span aria-hidden="true">↗</span></a><small>{{ entry.quote_asset }} 永续 {% if entry.consecutive_days > 1 %}<span class="dm-streak-badge">{% if entry.streak_open_start %}至少{% endif %}连榜 {{ entry.consecutive_days }} 天</span>{% endif %}</small></div>
+            <div class="dm-row-symbol"><a target="_blank" rel="noopener noreferrer" href="{% url 'daily_mover_monitor:detail' entry.symbol %}?date={{ selected_day|date:'Y-m-d' }}">{{ entry.symbol }} <span aria-hidden="true">↗</span></a><small>{{ entry.quote_asset }} 永续 {% if entry.consecutive_days > 1 %}<span class="dm-streak-badge">{% if entry.streak_open_start %}至少{% endif %}连榜 {{ entry.consecutive_days }} 天</span>{% endif %}</small></div>
             <span class="dm-signal">{{ entry.signal }}</span>
         </div>
         <dl class="dm-row-metrics">

@@ -4,6 +4,7 @@
 {% block extra_css %}<link rel="stylesheet" href="{% static 'daily_mover_monitor/dashboard.css' %}">{% endblock %}
 {% block content %}<div class="dm-page">
     <a class="dm-back" href="{% url 'daily_mover_monitor:index' %}?date={{ entry.snapshot.as_of_date|date:'Y-m-d' }}">← 返回 {{ entry.snapshot.as_of_date|date:'Y-m-d' }} 榜单</a>
+    {% if latest_symbol_day > entry.snapshot.as_of_date %}<p class="dm-preview-note">当前查看历史榜单，图表和判断仅使用当时已完成的日 K。<a href="{% url 'daily_mover_monitor:detail' entry.symbol %}?date={{ latest_symbol_day|date:'Y-m-d' }}">查看最新 {{ latest_symbol_day|date:"Y-m-d" }} 正式记录 →</a></p>{% endif %}
     <div class="dm-heading"><div><p class="eyebrow">{% if entry.rank %}#{{ entry.rank }}{% else %}掉榜后观察{% endif %} · {{ entry.signal }}</p><h1>{{ entry.symbol }}</h1><p>{{ entry.quote_asset }} 本位永续 · {{ entry.snapshot.as_of_date|date:"Y-m-d" }} {% if entry.snapshot.preview %}历史试算 / 回放{% else %}正式记录{% endif %}</p></div><a class="dm-link" href="{% url 'daily_mover_monitor:watchlist' %}?origin={{ structure_origin }}">结构观察池 →</a></div>
     {% if entry.snapshot.preview and entry.rank %}<div class="dm-preview-note" role="status"><strong>历史试算 · 非正式快照</strong><span>价格为历史日 K；盘口与名次按本次试算时的当前深度计算。</span></div>{% endif %}
     {% if entry.rank %}<div class="dm-summary dm-detail-summary">
@@ -16,7 +17,7 @@
     <details class="dm-panel dm-evidence"><summary>查看结构背景、平台依据与原平台方案</summary>
         {% include 'daily_mover_monitor/_structure_detail.html' %}
     </details>
-    <section class="dm-panel"><div class="dm-section-head"><div><span class="eyebrow">DAILY CANDLES</span><h2>日 K 与上涨区间</h2></div><span>UTC 日期 · 仅展示计算使用的 {{ candle_count }} 根完整日 K</span></div>
+    <section class="dm-panel"><div class="dm-section-head"><div><span class="eyebrow">DAILY CANDLES</span><h2>日 K 与上涨区间</h2></div><span>截至 {{ structure.cutoff }} UTC 日 K · {{ candle_count }} 根完整日 K</span></div>
         <div class="dm-chart-tools">
             <p class="dm-chart-hint">鼠标移入查看日期与开高低收，虚线显示指针价格；手机可点选，键盘左右键切换日 K。</p>
             {% if structure.platform %}<dl class="dm-chart-legend" aria-label="平台上下沿参考价格">

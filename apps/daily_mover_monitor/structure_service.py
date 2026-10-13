@@ -10,6 +10,7 @@ from .preview import preview_rows
 from .source import FuturesMarketClient
 from .structure import RULES, VERSION, analyze, pack_candles
 from .attention import build_attention
+from .continuation import build_continuation
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ def observe(watch, day, rows, *, ranked=False):
     result["discovered_on"] = watch.discovered_on.isoformat()
     result["dropout_days"] = (day-watch.last_ranked_on).days if not ranked else 0
     result["attention"] = build_attention(result)
+    result["continuation"] = build_continuation(result)
     serialized = json.dumps(result, ensure_ascii=False, sort_keys=True)
     with transaction.atomic():
         observation, _ = StructureObservation.objects.get_or_create(

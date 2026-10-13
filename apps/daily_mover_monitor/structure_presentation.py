@@ -2,6 +2,7 @@
 from copy import deepcopy
 from decimal import Decimal
 from .attention import build_attention
+from .continuation import build_continuation
 
 
 def present_structure(result):
@@ -53,6 +54,9 @@ def present_structure(result):
                 view["reasons"].insert(0, f'当前连续整理 {result["consolidation_days"]}/{required} 日')
             view["summary"] = "；".join(view["reasons"]) or "尚未满足平台确认条件"
     result["platform_view"] = view
+    if "continuation" not in result:
+        result["continuation"] = build_continuation(result)
+        result["continuation"]["provenance"] = "recomputed"
     if "attention" not in result:
         result["attention"] = build_attention(result)
         result["attention"]["provenance"] = "recomputed"

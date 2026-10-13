@@ -3,16 +3,16 @@
 {% block body_class %}daily-mover-page{% endblock %}
 {% block extra_css %}<link rel="stylesheet" href="{% static 'daily_mover_monitor/dashboard.css' %}">{% endblock %}
 {% block content %}<div class="dm-page">
-    <div class="dm-heading"><div><p class="eyebrow">LONG / SHORT WATCH · DAILY CLOSE</p><h1>结构观察池</h1><p>查看多头止跌与空头跌破反抽计划，掉榜继续观察，保留历史判断。</p></div><a class="dm-link" href="{% url 'daily_mover_monitor:index' %}">返回异动榜 →</a></div>
+    <div class="dm-heading"><div><p class="eyebrow">TREND CONTINUATION · DAILY CLOSE</p><h1>结构观察池</h1><p>查看向上突破与向下跌破后的站稳、回踩和横盘，掉榜继续观察。</p></div><a class="dm-link" href="{% url 'daily_mover_monitor:index' %}">返回异动榜 →</a></div>
     <nav class="dm-tabs"><a class="{% if origin == 'official' %}is-active{% endif %}" href="?origin=official">正式跟踪</a><a class="{% if origin == 'replay' %}is-active{% endif %}" href="?origin=replay">历史回放</a></nav>
     {% if origin == 'replay' %}<p class="dm-preview-note">历史回放：按当时已完成日 K 逐日计算，判断是在现在生成的。历史试算样本可能经过现时盘口筛选，不能用于证明当时可交易或统计无偏胜率。</p>{% endif %}
     <form class="dm-watch-filter" method="get"><input type="hidden" name="origin" value="{{ origin }}"><label>榜单日期 <input type="date" name="date" value="{{ selected_day|date:'Y-m-d' }}"></label><label>合约 <input type="search" name="symbol" value="{{ symbol_query }}" placeholder="例如 GTC"></label><label><input type="checkbox" name="dropped" value="1" {% if dropped %}checked{% endif %}> 只看掉榜</label><label><input type="checkbox" name="archive" value="1" {% if archive %}checked{% endif %}> 包含已结束周期</label><button type="submit">查看</button></form>
     <p class="dm-meta">共 {{ rows|length }} 个观察周期 · 按发现日期排列</p>
     <div class="dm-watch-grid">{% for row in rows %}<section class="dm-panel">
-        <div class="dm-section-head"><h2><a href="{% url 'daily_mover_monitor:detail' row.watch.symbol %}?date={{ selected_day|date:'Y-m-d' }}&origin={{ origin }}">{{ row.watch.symbol }}</a></h2><span>{% if row.ended %}跟踪已结束{% elif row.structure.ranked %}在榜{% else %}掉榜后观察{% endif %}</span></div>
+        <div class="dm-section-head"><h2><a target="_blank" rel="noopener noreferrer" href="{% url 'daily_mover_monitor:detail' row.watch.symbol %}?date={{ selected_day|date:'Y-m-d' }}&origin={{ origin }}">{{ row.watch.symbol }}</a></h2><span>{% if row.ended %}跟踪已结束{% elif row.structure.ranked %}在榜{% else %}掉榜后观察{% endif %}</span></div>
         {% include 'daily_mover_monitor/_structure_summary.html' with structure=row.structure %}
         <p class="dm-meta">发现 {{ row.watch.discovered_on|date:"Y-m-d" }} · 判断截至 {{ row.structure.cutoff }} UTC 日 K{% if row.stale %} · <strong>数据待更新</strong>{% endif %}</p>
         {% if row.ended %}<p class="dm-meta">{{ row.watch.ended_on|date:"Y-m-d" }} · {{ row.watch.end_reason }}</p>{% endif %}
     </section>{% empty %}<div class="dm-empty-panel"><strong>当前还没有结构观察记录</strong><p>正式扫描会开始跟踪入榜合约；历史回放生成后可在上方切换查看。</p></div>{% endfor %}</div>
-    <p class="dm-method">日线试用方案：参考低点附近 ±0.25 ATR(14)，单侧宽度限制为价格的 0.5%～3%。进入区间只表示观察；多头等止跌确认，空头等跌破后反抽失败。原平台结构用于计算依据，不要求所有方案先形成平台。掉榜继续跟踪，排名规则保持不变。</p>
+    <p class="dm-method">日线延续试用口径：上侧参考平台上沿或日线高点，下侧参考平台下沿或日线低点；区间为参考价 ±0.25 ATR14，单侧限制 0.5%～3%。连续 2 日收盘高于上侧区间或低于下侧区间确认站稳；至少 3 日 K 全部位于边界外、影线总宽度≤12%、收盘跨度≤8% 才标注高位或低位横盘。区间内横盘不算突破。掉榜继续跟踪。</p>
 </div>{% endblock %}
