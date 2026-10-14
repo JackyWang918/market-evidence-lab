@@ -31,6 +31,14 @@ class ChartViewTests(TestCase):
         self.assertContains(response,'归档日线滞后 13 天')
         self.assertEqual(self.client.get(reverse('breakout_acceptance:charts'),{'asset':'XAU','scale':'D'}).status_code,404)
 
+    def test_missing_gold_source_is_explained_on_chart(self):
+        self.run.payload['coverage'] = [row for row in self.run.payload['coverage'] if row['asset'] != 'XAU']
+        self.run.payload['manifest'] = {'missing_assets': [{'asset': 'XAU', 'reason': '黄金数据源暂时不可用'}]}
+        self.run.save(update_fields=['payload'])
+        response=self.client.get(reverse('breakout_acceptance:charts'),{'asset':'XAU'})
+        self.assertContains(response,'黄金数据源暂时不可用；本轮无数据')
+        self.assertEqual(response.context['chart_payload']['candles'],[])
+
     def test_invalid_asset_period_scale_and_foreign_event_rejected(self):
         for query in ({'asset':'OTHER'},{'period':'999999'},{'scale':'unknown'},{'event':str(self.other.pk)},{'event':'invalid'}):
             self.assertEqual(self.client.get(reverse('breakout_acceptance:charts'),query).status_code,404)

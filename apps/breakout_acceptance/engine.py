@@ -23,7 +23,7 @@ def fetch(url,path,offline=False):
 
 def collect(end,offline=False,root=None):
     ROOT=Path(root) if root is not None else Path(__file__).resolve().parents[2]/"data"/"breakout_acceptance"
-    manifest={'end_exclusive_utc':str(end),'retrieved_utc':dt.datetime.now(UTC).isoformat(),'files':[],'coverage':[]}
+    manifest={'end_exclusive_utc':str(end),'retrieved_utc':dt.datetime.now(UTC).isoformat(),'files':[],'coverage':[],'missing_assets':[]}
     datasets={}; quarantine=[]
     for asset in ASSETS:
         rows=[]
@@ -44,6 +44,7 @@ def collect(end,offline=False,root=None):
                 start=int(page[-1][0])+86400000
                 if len(page)<1000: break
         else:
+          try:
             for year in range(1999,end.year+1):
                 if year==end.year and not (ROOT/'raw'/'gold'/f'{year}.bi5').exists():
                     chunks=[(ROOT/'raw'/'gold'/f'{year}-{m:02d}-hour.bi5',pd.Timestamp(year=year,month=m+1,day=1,tz='UTC'),f'https://datafeed.dukascopy.com/datafeed/XAUUSD/{year}/{m:02d}/BID_candles_hour_1.bi5?x=5',True) for m in range(end.month-1)]
@@ -64,6 +65,10 @@ def collect(end,offline=False,root=None):
                     hourlydf=pd.DataFrame(hourrows,columns=['date','open','high','low','close']).set_index('date').sort_index()
                     d=hourlydf.resample('1D').agg({'open':'first','high':'max','low':'min','close':'last'}).dropna()
                     rows.extend([[date,*row] for date,row in d.iterrows()])
+          except (OSError, TimeoutError) as exc:
+            manifest['missing_assets'].append({'asset':asset,'reason':f'{type(exc).__name__}: 黄金数据源暂时不可用'})
+            print(asset,'source unavailable:',type(exc).__name__,flush=True)
+            continue
         df=pd.DataFrame(rows,columns=['date','open','high','low','close']).set_index('date').sort_index()
         assert not df.empty and not df.index.duplicated().any()
         assert (df.low>0).all() and (df.high>=df[['open','close','low']].max(axis=1)).all() and (df.low<=df[['open','close']].min(axis=1)).all()
@@ -74,7 +79,9 @@ def collect(end,offline=False,root=None):
         datasets[asset]=df
         (ROOT/'data').mkdir(exist_ok=True); df.to_csv(ROOT/'data'/f'{asset}_daily.csv')
         print(asset,manifest['coverage'][-1],flush=True)
-    pd.DataFrame(quarantine).to_csv(ROOT/'data'/'quarantine.csv',index=False)
+    if not datasets:
+        raise ValueError('No asset data collected')
+    pd.DataFrame(quarantine,columns=['asset','date','open','close','low','high']).to_csv(ROOT/'data'/'quarantine.csv',index=False)
     manifest['quarantined_rows']=len(quarantine)
     manifest['xau_policy']='Completed year daily BID; completed current-year month hourly BID, aggregated UTC. Current month excluded; daily tracker has explicit source lag.'
     (ROOT/'data'/'manifest.json').write_text(json.dumps(manifest,indent=2))

@@ -74,6 +74,21 @@ class ViewTests(TestCase):
   self.assertEqual(self.client.get(reverse('breakout_acceptance:download',args=(self.run.pk,'secret'))).status_code,404)
 
 class CollectorTests(SimpleTestCase):
+ def test_gold_source_outage_preserves_collected_crypto(self):
+  import pandas as pd
+  from apps.breakout_acceptance.engine import collect
+  base=int(datetime(1999,1,1,tzinfo=UTC).timestamp()*1000)
+  candles=[[base+i*86400000,'100','110','90','105','1',base+(i+1)*86400000-1] for i in range(3)]
+  def fake_fetch(url,path,offline=False):
+   if 'dukascopy' in url: raise OSError('source unavailable')
+   return json.dumps(candles).encode()
+  with TemporaryDirectory() as folder,patch('apps.breakout_acceptance.engine.fetch',side_effect=fake_fetch):
+   data=collect(pd.Timestamp('2000-01-01',tz='UTC'),root=folder)
+   self.assertEqual(tuple(data),('SOL','BNB','ZEC'))
+   manifest=json.loads((Path(folder)/'data'/'manifest.json').read_text())
+   self.assertEqual([row['asset'] for row in manifest['missing_assets']],['XAU'])
+   self.assertEqual([row['asset'] for row in manifest['coverage']],['SOL','BNB','ZEC'])
+   self.assertEqual(list(pd.read_csv(Path(folder)/'data'/'quarantine.csv').columns),['asset','date','open','close','low','high'])
  def test_completed_only_and_fixed_universe(self):
   import pandas as pd
   from apps.breakout_acceptance.engine import collect

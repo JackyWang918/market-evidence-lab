@@ -78,7 +78,8 @@ def execute_run(run_id, *, offline=False, heartbeat_callback=None):
         pulse()
         end = pd.Timestamp(run.cutoff_date, tz='UTC')
         datasets = collect(end, offline=offline, root=snapshot)
-        if tuple(datasets) != ASSETS: raise ValueError('Unexpected asset universe')
+        if not datasets or any(asset not in ASSETS for asset in datasets):
+            raise ValueError('Unexpected asset universe')
         pulse()
         research(datasets, end, root=snapshot)
         pulse()
@@ -107,7 +108,7 @@ def execute_run(run_id, *, offline=False, heartbeat_callback=None):
                  'weekly_review':_records(pd.read_csv(snapshot/'reports'/'weekly_review.csv')),
                  'cluster_intervals':_records(pd.read_csv(snapshot/'reports'/'cluster_intervals.csv')),
                  'event_count':len(events),'observation_count':len(tracks)}
-        partial=manifest['quarantined_rows']>0 or any(x['lag_calendar_days']>0 for x in coverage)
+        partial=bool(manifest['missing_assets']) or manifest['quarantined_rows']>0 or any(x['lag_calendar_days']>0 for x in coverage)
         shutil.copytree(snapshot/'raw', root/'raw', dirs_exist_ok=True)
         with transaction.atomic():
             DailyCandle.objects.bulk_create(candles, batch_size=500, update_conflicts=True, update_fields=['open','high','low','close','source'], unique_fields=['asset','date'])

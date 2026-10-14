@@ -28,9 +28,10 @@ def charts(request):
     if period not in ('90', '365', '730', 'all') or scale not in (('W', 'M') if asset == 'XAU' else ('D', 'W')):
         raise Http404('Invalid chart range or research scale')
     latest = latest_snapshot()
+    coverage = next((row for row in latest.payload.get('coverage', []) if row['asset'] == asset), None) if latest else None
     candles = DailyCandle.objects.none()
     events = ResearchEvent.objects.none()
-    if latest:
+    if latest and coverage:
         candles = DailyCandle.objects.filter(asset=asset, date__lt=latest.cutoff_date).order_by('date')
         latest_date = candles.order_by('-date').values_list('date', flat=True).first()
         if latest_date and period != 'all':
@@ -47,7 +48,6 @@ def charts(request):
         selected = next((event for event in events if event.pk == int(requested)), None)
         if selected is None: raise Http404('Event outside this chart snapshot or asset')
     series = [{'date': row.date.isoformat(), 'open': row.open, 'high': row.high, 'low': row.low, 'close': row.close} for row in candles]
-    coverage = next((row for row in latest.payload.get('coverage', []) if row['asset'] == asset), None) if latest else None
     payload = {
         'asset': asset, 'scale': scale, 'period': period, 'candles': series,
         # Mark the start neutrally; the final accepted state was not known at the start.
@@ -55,9 +55,10 @@ def charts(request):
         'selected': event_payload(selected) if selected else None,
         'summary': [row for row in latest.payload.get('summary', []) if row['asset'] == asset and row['scale'] == scale] if latest else [],
     }
+    missing = next((row for row in latest.payload.get('manifest', {}).get('missing_assets', []) if row['asset'] == asset), None) if latest else None
     return render(request, 'breakout_acceptance/charts.html', {
         'asset': asset, 'assets': ('SOL', 'BNB', 'ZEC', 'XAU'), 'period': period, 'scale': scale,
-        'latest': latest, 'coverage': coverage, 'events': events, 'selected_event': selected,
+        'latest': latest, 'coverage': coverage, 'missing': missing, 'events': events, 'selected_event': selected,
         'chart_payload': payload,
     })
 
