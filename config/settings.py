@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "apps.core.apps.CoreConfig",
+    "apps.breakout_acceptance.apps.BreakoutAcceptanceConfig",
     "apps.market_data.apps.MarketDataConfig",
     "apps.btc_prediction.apps.BtcPredictionConfig",
     "apps.microstructure.apps.MicrostructureConfig",

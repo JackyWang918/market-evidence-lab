@@ -30,12 +30,18 @@
     <div class="section-title-row">
         <div>
             <p class="eyebrow">可调度任务</p>
-            <h2 id="task-list-title">任务列表 <span>{{ fund_schedule_rows|length|add:"6" }}</span></h2>
+            <h2 id="task-list-title">任务列表 <span>{{ fund_schedule_rows|length|add:"7" }}</span></h2>
         </div>
         <p>统一查看所有任务；手动执行会先显示本次运行内容，不会直接启动。</p>
     </div>
 
     <div class="scheduled-task-grid">
+        <article class="scheduled-task-card">
+            <header class="task-card-header"><span class="task-type-icon market-icon" aria-hidden="true">R</span><div><span class="task-kicker">SOL · BNB · ZEC · XAU</span><h3>突破接受度每日研究</h3></div><span class="task-state{% if breakout_schedule.enabled %} is-enabled{% endif %}">{% if breakout_schedule.enabled %}已启用{% else %}已暂停{% endif %}</span></header>
+            <p class="task-description">每天北京时间 {{ breakout_schedule.run_time|time:"H:i" }} 采集完整日 K，更新突破逐日观察及历史收益/回撤对照。黄金以完整周/月 K 复核。</p>
+            <p>下一次：{{ breakout_schedule.next_run_at|date:"Y-m-d H:i" }} 北京时间</p>
+            <a href="{% url 'breakout_acceptance:index' %}">研究监听、采集开关与执行记录 →</a>
+        </article>
         <article class="scheduled-task-card">
             <header class="task-card-header">
                 <span class="task-type-icon market-icon" aria-hidden="true">M</span>

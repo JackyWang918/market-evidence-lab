@@ -1,3 +1,5 @@
+from apps.breakout_acceptance.services import execute_due as execute_breakout_due, get_schedule as get_breakout_schedule
+
 import signal
 import threading
 from uuid import uuid4
@@ -70,6 +72,7 @@ class Command(BaseCommand):
         if not 1 <= poll_interval <= 3600:
             raise CommandError("--poll-interval must be between 1 and 3600 seconds")
 
+        get_breakout_schedule()
         get_builtin_schedule()
         get_builtin_deribit_options_schedule()
         get_builtin_news_schedules()
@@ -101,6 +104,12 @@ class Command(BaseCommand):
         try:
             while not stop_event.is_set():
                 heartbeat()
+                try:
+                    execute_breakout_due(heartbeat_callback=heartbeat)
+                except Exception as exc:
+                    self.stderr.write(self.style.ERROR(
+                        f"Breakout research failed ({exc.__class__.__name__}); continuing."
+                    ))
                 try:
                     execute_daily_movers_due()
                 except Exception as exc:

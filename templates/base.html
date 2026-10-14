@@ -32,6 +32,14 @@
             </a>
 
             <nav class="navigation">
+                <details class="nav-group{% if request.resolver_match.namespace == 'breakout_acceptance' %} is-active{% endif %}" data-nav-group="breakout-research"{% if request.resolver_match.namespace == 'breakout_acceptance' %} open{% endif %}>
+                    <summary class="nav-item"><span>突破接受度研究</span><span class="nav-chevron" aria-hidden="true"></span></summary>
+                    <div class="nav-submenu" aria-label="突破接受度研究">
+                        <a class="nav-subitem{% if request.resolver_match.namespace == 'breakout_acceptance' and request.resolver_match.url_name == 'charts' %} is-active{% endif %}" href="{% url 'breakout_acceptance:charts' %}"{% if request.resolver_match.namespace == 'breakout_acceptance' and request.resolver_match.url_name == 'charts' %} aria-current="page"{% endif %}>图表研究</a>
+                        <a class="nav-subitem{% if request.resolver_match.namespace == 'breakout_acceptance' and request.resolver_match.url_name != 'charts' and request.resolver_match.url_name != 'data' %} is-active{% endif %}" href="{% url 'breakout_acceptance:index' %}"{% if request.resolver_match.namespace == 'breakout_acceptance' and request.resolver_match.url_name != 'charts' and request.resolver_match.url_name != 'data' %} aria-current="page"{% endif %}>研究监听</a>
+                        <a class="nav-subitem{% if request.resolver_match.namespace == 'breakout_acceptance' and request.resolver_match.url_name == 'data' %} is-active{% endif %}" href="{% url 'breakout_acceptance:data' %}"{% if request.resolver_match.namespace == 'breakout_acceptance' and request.resolver_match.url_name == 'data' %} aria-current="page"{% endif %}>历史数据</a>
+                    </div>
+                </details>
                 <a class="nav-item{% if request.resolver_match.namespace == 'btc_prediction' %} is-active{% endif %}" href="{% url 'btc_prediction:index' %}"{% if request.resolver_match.namespace == 'btc_prediction' %} aria-current="page"{% endif %}><span>BTC 涨跌实验</span></a>
                 <a class="nav-item{% if request.resolver_match.namespace == 'trading_assistant' %} is-active{% endif %}" href="{% url 'trading_assistant:index' %}"{% if request.resolver_match.namespace == 'trading_assistant' %} aria-current="page"{% endif %}><span>开仓分析助手</span></a>
                 <details class="nav-group{% if request.resolver_match.namespace == 'daily_mover_monitor' %} is-active{% endif %}" data-nav-group="daily-movers"{% if request.resolver_match.namespace == 'daily_mover_monitor' %} open{% endif %}>

@@ -5,6 +5,8 @@ into focused modules. Manual execution stays here to preserve public patch
 points used by callers and tests.
 """
 
+from apps.breakout_acceptance.services import get_schedule as get_breakout_schedule
+
 import secrets
 
 from django.contrib import messages
@@ -478,6 +480,7 @@ def schedule_index(request):
         )
 
     context = {
+        "breakout_schedule": get_breakout_schedule(),
         "schedule": schedule,
         "form": form,
         "news_schedule": news_schedule,

@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block extra_css %}<style>.br-panel{background:#fff;border:1px solid #dce3e9;border-radius:12px;padding:20px;margin:20px 0}.br-tabs{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0}.br-tabs a,.br-button{padding:8px 14px;border:1px solid #ccd7e0;border-radius:7px;text-decoration:none;color:inherit;background:white;cursor:pointer}.br-tabs .active{background:#173d55;color:white}.br-scroll{overflow:auto}.br-table{width:100%;border-collapse:collapse;font-size:14px}.br-table td,.br-table th{padding:10px;text-align:left;border-bottom:1px solid #e5eaf0;white-space:nowrap}.br-muted{color:#697787}.br-warning{background:#fff4dd;padding:12px;border-radius:8px}.br-grid{display:flex;gap:20px;flex-wrap:wrap}.br-grid>div{flex:1;min-width:210px}.br-status{color:#476771}.br-panel h2{margin-top:0}.br-pagination{display:flex;gap:18px;margin-top:15px}</style>{% block refresh %}{% endblock %}{% endblock %}
+{% block content %}
+<header class="page-header"><div><p class="eyebrow">SOL · BNB · ZEC · XAU</p><h1>{% block heading %}突破后价格重心是否被接受{% endblock %}</h1><p class="page-intro">已完成 K 线 · 突破前波动率归一化 · 仅研究与历史回测</p></div></header>
+<div class="br-tabs"><a href="{% url 'breakout_acceptance:charts' %}">图表研究</a><a href="{% url 'breakout_acceptance:index' %}">研究监听</a><a href="{% url 'breakout_acceptance:data' %}">历史数据查看</a><a href="{% url 'scheduling:index' %}">程序自动调度</a></div>
+{% if messages %}{% for message in messages %}<p class="br-warning">{{ message }}</p>{% endfor %}{% endif %}
+{% block research_content %}{% endblock %}
+{% endblock %}

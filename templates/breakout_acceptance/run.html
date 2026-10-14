@@ -1,0 +1,6 @@
+{% extends "breakout_acceptance/base.html" %}
+{% block heading %}采集与研究记录 #{{ run.pk }}{% endblock %}
+{% block research_content %}
+<section class="br-panel"><h2>{{ run.get_status_display }}</h2><p>UTC 截止日（不含）：{{ run.cutoff_date|date:"Y-m-d" }}</p><p>请求：{{ run.requested_at|date:"Y-m-d H:i:s" }} · 开始：{{ run.started_at|date:"Y-m-d H:i:s"|default:"等待执行" }} · 完成：{{ run.finished_at|date:"Y-m-d H:i:s"|default:"尚未完成" }}（北京时间）</p>{% if run.safe_error %}<p class="br-warning">{{ run.safe_error }}</p>{% endif %}
+{% if run.snapshot_path %}<p>本轮版本 {{ run.payload.version }} · {{ run.payload.event_count }} 个事件 / {{ run.payload.observation_count }} 条逐日观察</p><div class="br-tabs"><a href="{% url 'breakout_acceptance:download' run.pk 'report' %}">完整报告</a><a href="{% url 'breakout_acceptance:download' run.pk 'events' %}">事件 CSV</a><a href="{% url 'breakout_acceptance:download' run.pk 'observations' %}">逐日观察 CSV</a><a href="{% url 'breakout_acceptance:download' run.pk 'outcomes' %}">收益与回撤 CSV</a><a href="{% url 'breakout_acceptance:download' run.pk 'summary' %}">对照汇总 CSV</a><a href="{% url 'breakout_acceptance:download' run.pk 'manifest' %}">来源与 SHA-256 清单</a><a href="{% url 'breakout_acceptance:download' run.pk 'quarantine' %}">异常数据清单</a></div>{% else %}<p>当前尚未发布本轮结果；上一次完成的研究保持可查看。</p>{% endif %}</section>
+{% endblock %}

@@ -424,3 +424,12 @@ uv run --env-file .env python manage.py check
 uv run --env-file .env python manage.py test
 uv run --env-file .env python manage.py makemigrations --check --dry-run
 ```
+
+## 突破接受度研究：SOL / BNB / ZEC / XAU
+
+研究监听、每日采集与数据查看均在本程序内：<http://127.0.0.1:8001/breakout-research/>。
+现有 `run_scheduler` 已接入每天北京时间 08:20 的四资产采集与研究任务；也可运行
+`uv run python manage.py run_breakout_research_worker` 只处理这项研究。
+页面提供自动采集开关、手动队列、有效日 K、突破事件逐日轨迹、收益与回撤对照及执行记录下载。
+迁移与复现流程、固定来源和研究规则见 [突破接受度研究说明](docs/breakout-acceptance-research.md)。
+此模块仅研究回测，不读取项目其他资产数据，不接入真实交易。

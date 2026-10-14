@@ -43,7 +43,15 @@ class NavigationParser(HTMLParser):
 
 class ProductSurfaceTests(TestCase):
     expected_links = [
+        "breakout_acceptance:charts",
+        "breakout_acceptance:index",
+        "breakout_acceptance:data",
+        "btc_prediction:index",
         "trading_assistant:index",
+        "daily_mover_monitor:index",
+        "daily_mover_monitor:trend_list",
+        "daily_mover_monitor:watchlist",
+        "daily_mover_monitor:history",
         "market_data:index",
         "market_data:deribit_options",
         "market_funds:index",
@@ -76,6 +84,8 @@ class ProductSurfaceTests(TestCase):
         self.assertEqual(
             parser.groups,
             [
+                "breakout-research",
+                "daily-movers",
                 "market-data",
                 "market-funds",
                 "microstructure",
@@ -87,7 +97,17 @@ class ProductSurfaceTests(TestCase):
         self.assertEqual(
             parser.labels,
             [
+                "突破接受度研究",
+                "图表研究",
+                "研究监听",
+                "历史数据",
+                "BTC 涨跌实验",
                 "开仓分析助手",
+                "合约异动",
+                "每日异动榜",
+                "早期趋势候选",
+                "结构观察池",
+                "历史排行",
                 "行情数据观察",
                 "数据查看",
                 "Deribit 期权数据",

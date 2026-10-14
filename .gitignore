@@ -29,3 +29,6 @@ htmlcov/
 .idea/
 .vscode/
 .DS_Store
+
+# Reproducible research snapshots (runtime)
+data/breakout_acceptance/
