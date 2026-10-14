@@ -5,6 +5,6 @@
 {% block content %}<div class="dm-page">
     <a class="dm-back" href="{% url 'daily_mover_monitor:index' %}">← 今日排行</a>
     <form class="dm-date-form" method="get"><label for="dm-date">历史日期</label><input id="dm-date" type="date" name="date" value="{{ selected_day|date:'Y-m-d' }}"><button type="submit">查看</button></form>
-    <div class="dm-history-dates">{% for item in available_dates %}<a href="?date={{ item.as_of_date|date:'Y-m-d' }}">{{ item.as_of_date|date:'Y-m-d' }}</a>{% endfor %}</div>
+    <div class="dm-history-dates" aria-label="最近日期">{% for item in available_dates %}<a href="?date={{ item.as_of_date|date:'Y-m-d' }}"{% if item.as_of_date == selected_day %} class="is-active" aria-current="date"{% endif %}>{{ item.as_of_date|date:'Y-m-d' }}</a>{% endfor %}</div>
     {% include "daily_mover_monitor/_board.html" with show_tabs=False %}
 </div>{% endblock %}

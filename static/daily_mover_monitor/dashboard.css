@@ -34,6 +34,7 @@
 .dm-date-form button{background:#14233c;color:#fff;cursor:pointer}
 .dm-history-dates{display:flex;gap:8px;overflow-x:auto;margin-bottom:26px}
 .dm-history-dates a{font-size:12px;padding:7px 10px;border-radius:6px;background:#eaf0f8;color:#294b85;text-decoration:none;white-space:nowrap}
+.dm-history-dates a.is-active{background:#294b85;color:#fff}
 .dm-panel{padding:22px;background:#fff;border:1px solid #e2e7ef;border-radius:14px;box-shadow:0 8px 22px rgba(28,48,82,.03);margin-top:18px}
 .dm-section-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px}
 .dm-section-head h2{font-size:18px;margin:2px 0}

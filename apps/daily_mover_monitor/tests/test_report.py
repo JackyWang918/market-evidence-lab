@@ -6,7 +6,7 @@ from django.test import TestCase, override_settings
 
 from apps.daily_mover_monitor.models import (
     DailyMoverDigest, DailyMoverEntry, DailyMoverSnapshot,
-    StructureObservation, StructureWatch,
+    StructureObservation, StructureWatch, TrendObservation, TrendWatch,
 )
 from apps.daily_mover_monitor.report import build_digest, send_digest
 
@@ -82,6 +82,34 @@ class DigestTests(TestCase):
         self.assertIn("AINUSDT", content)
         self.assertIn("新入榜第 1", content)
         self.assertNotIn("webhook", content)
+
+    def test_digest_highlights_trend_candidates_outside_the_rankings(self):
+        for symbol, discovered, observation_day, stage, new_high in (
+            ("BTWUSDT", FIRST, SECOND, "再次扩张", True),
+            ("AKEUSDT", SECOND, SECOND, "初次扩张", True),
+            ("STALEUSDT", FIRST, FIRST, "高位整理", False),
+        ):
+            watch = TrendWatch.objects.create(
+                symbol=symbol, quote_asset="USDT", discovered_on=discovered,
+                last_high_on=observation_day, discovery_reason="20日收盘新高",
+                discovery_bid_depth=Decimal("20000"), discovery_ask_depth=Decimal("20000"),
+                discovery_spread_bps=Decimal("5"), rule_version="trend-research-v1",
+            )
+            TrendObservation.objects.create(
+                watch=watch, as_of_date=observation_day,
+                data_cutoff_at=datetime.combine(observation_day - timedelta(days=1), datetime.min.time(), UTC),
+                rule_version="trend-research-v1", input_hash="a" * 64,
+                result={"stage": stage, "stage_changed": True,
+                        "new_close_high_30d": new_high, "center_rising": True,
+                        "lows_rising": True, "ranked": False},
+            )
+        content = build_digest(self.current)
+        self.assertIn("### 趋势候选", content)
+        self.assertIn("BTWUSDT（榜外）：转入再次扩张", content)
+        self.assertIn("AKEUSDT（榜外）：新发现", content)
+        self.assertNotIn("STALEUSDT", content)
+        self.assertIn("### 异动榜变化", content)
+        self.assertIn("GTCUSDT", content)
 
     @override_settings(DAILY_MOVER_WECHAT_WEBHOOK_URL="https://example.test/webhook")
     def test_success_is_sent_once_even_if_task_retries(self):

@@ -105,7 +105,10 @@ def history(request):
     all_days = sorted(official_days | set(preview_data[0]), reverse=True)
     selected = day or (all_days[0] if all_days else today_in_shanghai())
     context = _board_context(selected, preview_data)
-    context["available_dates"] = [SimpleNamespace(as_of_date=value) for value in all_days]
+    quick_days = all_days[:5]
+    if selected in all_days and selected not in quick_days:
+        quick_days.append(selected)
+    context["available_dates"] = [SimpleNamespace(as_of_date=value) for value in quick_days]
     return render(request, "daily_mover_monitor/history.html", context)
 
 
