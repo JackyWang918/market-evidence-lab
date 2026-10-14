@@ -169,6 +169,48 @@ class StructureObservation(models.Model):
         raise RuntimeError("已发布的结构判断不可删除")
 
 
+class TrendWatch(models.Model):
+    """A research candidate cycle independent of the top-30 ranking."""
+    symbol = models.CharField(max_length=30)
+    quote_asset = models.CharField(max_length=10)
+    discovered_on = models.DateField()
+    last_high_on = models.DateField()
+    archived_on = models.DateField(null=True, blank=True)
+    discovery_reason = models.CharField(max_length=100)
+    discovery_bid_depth = models.DecimalField(max_digits=40, decimal_places=8)
+    discovery_ask_depth = models.DecimalField(max_digits=40, decimal_places=8)
+    discovery_spread_bps = models.DecimalField(max_digits=18, decimal_places=6)
+    rule_version = models.CharField(max_length=30)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-discovered_on", "symbol"]
+        constraints = [models.UniqueConstraint(fields=["symbol", "discovered_on", "rule_version"], name="trend_watch_cycle_unique")]
+
+
+class TrendObservation(models.Model):
+    objects = ImmutableManager()
+    watch = models.ForeignKey(TrendWatch, on_delete=models.PROTECT, related_name="observations")
+    as_of_date = models.DateField()
+    data_cutoff_at = models.DateTimeField()
+    generated_at = models.DateTimeField(auto_now_add=True)
+    rule_version = models.CharField(max_length=30)
+    input_hash = models.CharField(max_length=64)
+    result = models.JSONField()
+
+    class Meta:
+        ordering = ["-as_of_date", "-pk"]
+        constraints = [models.UniqueConstraint(fields=["watch", "as_of_date", "rule_version"], name="trend_observation_unique")]
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None:
+            raise RuntimeError("已发布的趋势观察不可修改")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise RuntimeError("已发布的趋势观察不可删除")
+
+
 class DailyMoverDigest(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "待发送"

@@ -56,17 +56,19 @@ def scan(
         if not symbols:
             raise RuntimeError("币安未返回可扫描的永续合约")
         candidates = []
+        histories = {}
         latest_candles = 0
         for symbol, quote_asset in symbols:
-            candles = source.candles(symbol, day)
+            candles = source.candles(symbol, day, days=90)
+            histories[symbol] = candles
             if candles:
                 if candles[-1].open_at.date() != day - timedelta(days=1):
                     raise RuntimeError(f"{symbol} 缺少上一根完整日 K")
                 latest_candles += 1
-            result = detect(candles)
+            result = detect(candles[-11:])
             if result:
                 signal_name, signal, baseline_change = result
-                candidates.append((symbol, quote_asset, candles, signal_name, signal, baseline_change))
+                candidates.append((symbol, quote_asset, candles[-11:], signal_name, signal, baseline_change))
         if latest_candles == 0:
             raise RuntimeError("没有取得上一根完整日 K")
 
@@ -148,7 +150,7 @@ def scan(
             run.candidate_count = len(candidates)
             run.excluded_depth_count = excluded
             run.save(update_fields=["status", "finished_at", "scanned_count", "candidate_count", "excluded_depth_count"])
-        if _update_structures(day, source):
+        if _update_structures(day, source, histories=histories):
             _send_report(snapshot)
         return snapshot
     except Exception as exc:
@@ -163,20 +165,30 @@ def scan(
             source.close()
 
 
-def _update_structures(day, client):
+def _update_structures(day, client, histories=None):
     # Structure collection is independent: it must never rewrite/fail a published rank.
     import logging
     from .structure_service import update_official
+    from .trend_service import update_official as update_trends
+    structures_okay = True
+    trends_okay = True
     try:
         _, errors = update_official(day, client=client)
         if errors:
-            _retry_structures(day)
-            return False
+            structures_okay = False
     except Exception as exc:
         logging.getLogger(__name__).warning("结构观察未完成: %s", type(exc).__name__)
+        structures_okay = False
+    try:
+        _, errors = update_trends(day, client=client, histories=histories)
+        if errors:
+            trends_okay = False
+    except Exception as exc:
+        logging.getLogger(__name__).warning("趋势观察未完成: %s", type(exc).__name__)
+        trends_okay = False
+    if not (structures_okay and trends_okay):
         _retry_structures(day)
-        return False
-    return True
+    return structures_okay
 
 
 def _send_report(snapshot):

@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}{{ watch.symbol }} 趋势时间线{% endblock %}
+{% block body_class %}daily-mover-page{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'daily_mover_monitor/dashboard.css' %}?v=trend-3">{% endblock %}
+{% block content %}<div class="dm-page">
+  <div class="dm-heading"><div><p class="eyebrow">TREND TIMELINE · DAILY CLOSE</p><h1>{{ watch.symbol }}</h1><p>首次发现 {{ watch.created_at|date:'Y-m-d H:i' }} · {{ watch.discovery_reason }}</p></div><a class="dm-link" href="{% url 'daily_mover_monitor:trend_list' %}">返回候选池 →</a></div>
+  <p class="dm-meta">发现时盘口：买侧 {{ watch.discovery_bid_depth|floatformat:0 }} · 卖侧 {{ watch.discovery_ask_depth|floatformat:0 }} · 价差 {{ watch.discovery_spread_bps|floatformat:2 }} bps · 规则 {{ watch.rule_version }}</p>
+  {% if chart_candles %}<section class="dm-panel dm-trend-chart-panel">
+    <div class="dm-section-head"><div><span class="eyebrow">DAILY TREND</span><h2>多日走势与阶段</h2></div><span>截至 {{ latest.result.cutoff }} UTC · {{ chart_candles|length }} 根完整日 K</span></div>
+    <div class="dm-trend-chart-controls" role="group" aria-label="图表选项"><button type="button" data-range="30" aria-pressed="false">近 30 日</button><button type="button" data-range="90" aria-pressed="true">近 90 日</button><button type="button" data-range="all" aria-pressed="false">全部</button><label><input id="dm-trend-log" type="checkbox" checked> 对数价格轴</label><label><input id="dm-trend-wicks" type="checkbox"> 完整影线比例</label></div>
+    <div id="dm-trend-range-stats" class="dm-trend-range-stats" aria-live="polite"></div>
+    <div class="dm-trend-legend"><span><i class="dm-legend-discovery"></i>首次发现</span><span><i class="dm-legend-center"></i>10 日价格中心</span><span><i class="dm-legend-high"></i>收盘新高</span><span><i class="dm-legend-low"></i>已确认低点连线</span><span><i class="dm-legend-volume"></i>日成交额</span><span><i class="dm-legend-count"></i>近 14 日新高次数</span></div>
+    <p class="dm-chart-hint">左轴为价格，右轴为相对所选区间首根收盘价的涨跌幅。默认对数价格轴并聚焦开收盘价；超出视图的影线用箭头提示，可切换完整影线比例。空心新高是历史 K 线回看，实心新高是发现后的逐日观察。</p>
+    <div class="dm-chart-wrap"><canvas id="dm-trend-candles" height="410" tabindex="0" role="img" aria-label="{{ watch.symbol }} 日 K、价格中心、发现日期、新高与回撤低点" aria-describedby="dm-trend-tooltip"></canvas><div id="dm-trend-tooltip" class="dm-chart-tooltip" role="status" hidden></div></div>
+    {{ chart_candles|json_script:"dm-trend-candle-data" }}{{ chart_events|json_script:"dm-trend-event-data" }}{{ chart_indicators|json_script:"dm-trend-indicator-data" }}
+    <div id="dm-trend-meta" data-discovery="{{ discovery_candle_date|date:'Y-m-d' }}" data-quote="{{ watch.quote_asset }}"></div>
+    <p class="dm-method">发现标记对应首次满足条件的 UTC 日 K 收盘，候选记录在次日扫描时生成。历史新高、低点连线、价格中心和新高次数由留存日 K 回看计算，不能当作过去已发布的候选。回撤低点须再经过右侧 2 根完整日 K 才确认；图上位置是低点发生日，不表示当日就已知道。成交额使用 Binance 日 K 的计价成交额。</p>
+  </section>{% endif %}
+  {% if latest %}<div class="dm-panel"><h2>当前阶段：{{ latest.result.stage }}</h2><p>截至 {{ latest.result.cutoff }} UTC 日 K · 收盘 {{ latest.result.close }} · 30 日最高收盘 {{ latest.result.close_high_30d }} · 近 30 日 14 日收盘新高 {{ latest.result.close_high_14d_count }} 次</p><p>近 10 日价格中心 {{ latest.result.center_10d }}；此前 10 日 {{ latest.result.prior_center_10d }}。已确认低点 {% for low in latest.result.confirmed_lows %}{{ low.date }}: {{ low.price }}{% if not forloop.last %} → {% endif %}{% empty %}不足两个{% endfor %}</p></div>{% endif %}
+  <h2>每日阶段与事件</h2>
+  <div class="dm-table-wrap"><table class="dm-table"><thead><tr><th>榜单日</th><th>UTC K线日</th><th>阶段</th><th>收盘</th><th>新高</th><th>价格中心</th><th>回撤低点</th><th>榜单</th></tr></thead><tbody>{% for item in observations %}<tr><td>{{ item.as_of_date|date:'Y-m-d' }}</td><td>{{ item.result.cutoff }}</td><td>{{ item.result.stage }}{% if item.result.stage_changed %} · 变化{% endif %}</td><td>{{ item.result.close }}</td><td>{% if item.result.new_close_high_30d %}30日{% elif item.result.new_close_high_14d %}14日{% else %}—{% endif %}</td><td>{{ item.result.center_10d }} {% if item.result.center_rising %}↑{% else %}↓{% endif %}</td><td>{% if item.result.lows_rising %}抬高{% elif item.result.lows_falling %}降低{% else %}待确认{% endif %}</td><td>{% if item.result.ranked %}前30{% else %}未入榜{% endif %}</td></tr>{% empty %}<tr><td colspan="8">暂无逐日观察</td></tr>{% endfor %}</tbody></table></div>
+  <p class="dm-method">局部低点需要左右各 2 根完整日 K 确认；收盘新高按此前 14/30 根完整日 K 比较。阶段为研究标签，不保证后续涨幅。每日记录与输入摘要保存，历史判断不覆盖。</p>
+</div>{% endblock %}
+{% block extra_js %}<script src="{% static 'daily_mover_monitor/trend_chart.js' %}?v=3" defer></script>{% endblock %}

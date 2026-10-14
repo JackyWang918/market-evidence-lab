@@ -75,7 +75,7 @@ class FuturesMarketClient:
             raise BinanceClientError("Binance kline response is invalid")
         parsed = [self.client._parse_row(row) for row in rows]
         return [
-            Candle(row.open_time, row.open, row.high, row.low, row.close)
+            Candle(row.open_time, row.open, row.high, row.low, row.close, row.quote_volume)
             for row in parsed
             if start <= row.open_time < end and row.close_time < end
         ]

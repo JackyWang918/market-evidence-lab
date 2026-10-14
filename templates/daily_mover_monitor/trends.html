@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}早期趋势候选 · 合约异动{% endblock %}
+{% block body_class %}daily-mover-page{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'daily_mover_monitor/dashboard.css' %}?v=trend-3">{% endblock %}
+{% block content %}<div class="dm-page">
+  <div class="dm-heading"><div><p class="eyebrow">EARLY CANDIDATES · DAILY CLOSE</p><h1>早期趋势候选</h1><p>首次收盘突破后持续记录走势阶段；上榜只是附加信息。</p></div><a class="dm-link" href="{% url 'daily_mover_monitor:index' %}">返回异动榜 →</a></div>
+  <form class="dm-watch-filter" method="get"><label>观察日期 <input type="date" name="date" value="{{ selected_day|date:'Y-m-d' }}"></label><label>合约 <input type="search" name="symbol" value="{{ symbol_query }}" placeholder="例如 BTW"></label><label><input type="checkbox" name="archive" value="1" {% if archive %}checked{% endif %}> 历史归档</label><button type="submit">查看</button></form>
+  <p class="dm-meta">共 {{ rows|length }} 个{% if archive %}归档{% else %}持续观察{% endif %}周期。记录自首次发现日起逐日生成；较早日期没有观察记录，不代表当时未满足条件。</p>
+  <div class="dm-watch-grid">{% for row in rows %}<section class="dm-panel">
+    <div class="dm-section-head"><h2><a href="{% url 'daily_mover_monitor:trend_detail' row.watch.symbol %}?date={{ selected_day|date:'Y-m-d' }}">{{ row.watch.symbol }}</a></h2><span class="dm-trend-stage">{% if row.observation %}{{ row.observation.result.stage }}{% else %}等待采集{% endif %}</span></div>
+    {% if row.sparkline %}<div class="dm-trend-spark-head"><span>近 {{ row.sparkline_count }} 根日 K 收盘变化</span><strong class="{% if row.change_30_pct >= 0 %}dm-positive{% else %}dm-negative{% endif %}">{% if row.change_30_pct >= 0 %}+{% endif %}{{ row.change_30_pct|floatformat:1 }}%</strong></div><a class="dm-trend-spark-link" href="{% url 'daily_mover_monitor:trend_detail' row.watch.symbol %}?date={{ selected_day|date:'Y-m-d' }}" aria-label="查看 {{ row.watch.symbol }} 完整日 K 图"><canvas class="dm-trend-spark" data-closes="{{ row.sparkline }}" height="72" aria-hidden="true"></canvas></a>{% endif %}
+    <p class="dm-meta">发现 {{ row.watch.created_at|date:'Y-m-d H:i' }} · {{ row.watch.discovery_reason }} · 截至 {% if row.observation %}{{ row.observation.result.cutoff }}{% else %}—{% endif %} UTC 日 K{% if row.stale %} · 所选日期观察待更新{% endif %}</p>
+    {% if row.observation %}<p>30 日收盘新高：{% if row.observation.result.new_close_high_30d is None %}数据不足{% elif row.observation.result.new_close_high_30d %}是{% else %}否{% endif %} · 近 30 日 14 日收盘新高 {{ row.observation.result.close_high_14d_count }} 次 · 回撤低点：{% if row.observation.result.lows_rising %}抬高{% elif row.observation.result.lows_falling %}降低{% else %}尚未确认趋势{% endif %}</p><p class="dm-meta">近 10 日价格中心 {{ row.observation.result.center_10d }} · 前 10 日 {{ row.observation.result.prior_center_10d }} · {% if row.observation.result.ranked %}当日在榜{% else %}当日未入前 30{% endif %}{% if row.observation.result.stage_changed %} · 今日阶段变化{% endif %}</p>{% endif %}
+    {% if row.ended %}<p class="dm-meta">{{ row.watch.archived_on|date:'Y-m-d' }} 归档；再次满足候选条件可开启新周期。</p>{% endif %}
+  </section>{% empty %}<div class="dm-empty-panel"><strong>当前没有符合条件的候选周期</strong><p>首次正式采集后会显示满足早期规则的合约。</p></div>{% endfor %}</div>
+  <p class="dm-method">研究规则 {{ rows.0.watch.rule_version|default:'trend-research-v1' }}：至少连续 21 根完整 UTC 日 K；收盘价超过此前 20 日最高收盘价 1%，近 5 根日 K 上涨至少 8%，近 5 日成交额中位数至少 10 万计价币，并通过当日盘口筛选后入池。观察阶段按 14/30 日收盘新高、确认回撤低点和近 10 日收盘中位数更新；不足 31 根 K 时 30 日新高状态待确认。连续 120 日无 30 日收盘新高时归档。口径尚未验证收益，不是买入信号。</p>
+</div>{% endblock %}
+{% block extra_js %}<script src="{% static 'daily_mover_monitor/trend_chart.js' %}?v=1" defer></script>{% endblock %}

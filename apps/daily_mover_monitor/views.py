@@ -1,4 +1,5 @@
 from datetime import UTC, date, datetime, time, timedelta
+from decimal import Decimal
 from types import SimpleNamespace
 
 from django.conf import settings
@@ -7,11 +8,13 @@ from django.http import Http404
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
-from .models import DailyMoverEntry, DailyMoverSnapshot, StructureObservation, StructureWatch
+from .models import DailyMoverEntry, DailyMoverSnapshot, StructureObservation, StructureWatch, TrendObservation, TrendWatch
 from .preview import preview_rows
 from .service import today_in_shanghai
 from .structure import VERSION, unavailable
 from .structure_presentation import present_structure
+from .trend import VERSION as TREND_VERSION
+from .trend_presentation import chart_indicators
 
 
 def _attach_structures(entries, day):
@@ -196,4 +199,58 @@ def watchlist(request):
         "rows": rows, "origin": origin, "selected_day": day,
         "archive": archive,
         "symbol_query": query, "dropped": request.GET.get("dropped") == "1",
+    })
+
+
+@require_GET
+def trend_list(request):
+    day = _parse_day(request.GET.get("date")) or today_in_shanghai()
+    archive = request.GET.get("archive") == "1"
+    query = request.GET.get("symbol", "").strip().upper()[:30]
+    watches = TrendWatch.objects.filter(rule_version=TREND_VERSION, discovered_on__lte=day)
+    if query:
+        watches = watches.filter(symbol__icontains=query)
+    rows = []
+    for watch in watches:
+        ended = bool(watch.archived_on and watch.archived_on <= day)
+        if ended != archive:
+            continue
+        observation = watch.observations.filter(as_of_date__lte=day, rule_version=TREND_VERSION).first()
+        recent = observation.result.get("candles", [])[-30:] if observation else []
+        first_close = Decimal(recent[0]["close"]) if recent else Decimal(0)
+        last_close = Decimal(recent[-1]["close"]) if recent else Decimal(0)
+        rows.append({"watch": watch, "observation": observation, "ended": ended,
+                     "stale": bool(observation and observation.as_of_date < day),
+                     "sparkline": ",".join(candle["close"] for candle in recent),
+                     "sparkline_count": len(recent),
+                     "change_30_pct": (last_close / first_close - 1) * 100 if first_close > 0 and len(recent) > 1 else None})
+    rows.sort(key=lambda row: (row["observation"].as_of_date if row["observation"] else date.min,
+                               row["watch"].discovered_on), reverse=True)
+    return render(request, "daily_mover_monitor/trends.html", {
+        "rows": rows, "selected_day": day, "archive": archive, "symbol_query": query,
+    })
+
+
+@require_GET
+def trend_detail(request, symbol: str):
+    day = _parse_day(request.GET.get("date")) or today_in_shanghai()
+    watch = TrendWatch.objects.filter(symbol=symbol.upper(), rule_version=TREND_VERSION,
+                                      discovered_on__lte=day).first()
+    if watch is None:
+        raise Http404("没有该合约的趋势观察记录")
+    observations = list(watch.observations.filter(as_of_date__lte=day, rule_version=TREND_VERSION).order_by("-as_of_date")[:90])
+    latest = observations[0] if observations else None
+    chart_candles = latest.result.get("candles", [])[-180:] if latest else []
+    chart_events = [{"date": item.result["cutoff"], "stage": item.result["stage"],
+                     "stage_changed": item.result.get("stage_changed", False),
+                     "new14": item.result.get("new_close_high_14d", False),
+                     "new30": item.result.get("new_close_high_30d", False),
+                     "center": item.result.get("center_10d"),
+                     "ranked": item.result.get("ranked", False)}
+                    for item in reversed(observations)]
+    return render(request, "daily_mover_monitor/trend_detail.html", {
+        "watch": watch, "observations": observations, "latest": latest,
+        "selected_day": day, "chart_candles": chart_candles, "chart_events": chart_events,
+        "chart_indicators": chart_indicators(chart_candles),
+        "discovery_candle_date": watch.discovered_on - timedelta(days=1),
     })

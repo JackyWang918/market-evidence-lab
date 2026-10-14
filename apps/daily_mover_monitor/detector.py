@@ -11,6 +11,7 @@ class Candle:
     high: Decimal
     low: Decimal
     close: Decimal
+    quote_volume: Decimal | None = None
 
 
 @dataclass(frozen=True)

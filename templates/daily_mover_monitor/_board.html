@@ -2,7 +2,7 @@
 <script src="{% static 'daily_mover_monitor/board.js' %}" defer></script>
 <div class="dm-heading dm-board-heading">
     <div><p class="eyebrow">BINANCE USDⓈ-M · DAILY CLOSE</p><h1>合约异动</h1><p class="dm-intro-full">完整 UTC 日 K 收盘后，北京时间每日 08:20 生成榜单。</p><p class="dm-intro-short">每日 08:20 更新 · UTC 日 K</p></div>
-    <div class="dm-board-links"><a class="dm-link" href="{% url 'daily_mover_monitor:watchlist' %}?origin={% if snapshot.preview %}replay{% else %}official{% endif %}">结构观察池 →</a><a class="dm-link" href="{% url 'daily_mover_monitor:history' %}"><span class="dm-link-full">查看历史排行 →</span><span class="dm-link-short">历史 →</span></a></div>
+    <div class="dm-board-links"><a class="dm-link" href="{% url 'daily_mover_monitor:trend_list' %}">早期趋势候选 →</a><a class="dm-link" href="{% url 'daily_mover_monitor:watchlist' %}?origin={% if snapshot.preview %}replay{% else %}official{% endif %}">结构观察池 →</a><a class="dm-link" href="{% url 'daily_mover_monitor:history' %}"><span class="dm-link-full">查看历史排行 →</span><span class="dm-link-short">历史 →</span></a></div>
 </div>
 {% if show_tabs %}
 <nav class="dm-tabs" aria-label="最近八日排行">
