@@ -2,7 +2,7 @@ from datetime import UTC,datetime,timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
-import struct,lzma,json
+import json
 from django.test import TestCase,SimpleTestCase,override_settings
 from django.db import IntegrityError,transaction
 from django.core.management import call_command
@@ -80,7 +80,7 @@ class CollectorTests(SimpleTestCase):
   base=int(datetime(1999,1,1,tzinfo=UTC).timestamp()*1000)
   candles=[[base+i*86400000,'100','110','90','105','1',base+(i+1)*86400000-1] for i in range(3)]
   def fake_fetch(url,path,offline=False):
-   if 'dukascopy' in url: raise OSError('source unavailable')
+   if 'fapi.binance.com' in url: raise OSError('source unavailable')
    return json.dumps(candles).encode()
   with TemporaryDirectory() as folder,patch('apps.breakout_acceptance.engine.fetch',side_effect=fake_fetch):
    data=collect(pd.Timestamp('2000-01-01',tz='UTC'),root=folder)
@@ -96,9 +96,12 @@ class CollectorTests(SimpleTestCase):
   candles=[[base+i*86400000,'100','110','90','105','1',base+(i+1)*86400000-1] for i in range(3)]
   future=int(datetime(2000,1,1,tzinfo=UTC).timestamp()*1000)
   candles.append([future,'100','110','90','105','1',future+86400000-1])
-  raw=lzma.compress(b''.join(struct.pack('>5if',i*86400,100000,105000,90000,110000,1) for i in range(3)))
-  def fake_fetch(url,path,offline=False):return raw if 'dukascopy' in url else json.dumps(candles).encode()
+  def fake_fetch(url,path,offline=False):return json.dumps(candles).encode()
   with TemporaryDirectory() as folder,patch('apps.breakout_acceptance.engine.fetch',side_effect=fake_fetch):
    data=collect(pd.Timestamp('2000-01-01',tz='UTC'),root=folder)
    self.assertEqual(tuple(data),('SOL','BNB','ZEC','XAU'))
    for frame in data.values():self.assertEqual(len(frame),3);self.assertLess(frame.index.max(),pd.Timestamp('2000-01-01',tz='UTC'))
+   manifest=json.loads((Path(folder)/'data'/'manifest.json').read_text())
+   gold=next(row for row in manifest['coverage'] if row['asset']=='XAU')
+   self.assertEqual((gold['symbol'],gold['market']),('XAUUSDT','binance_usdm_futures'))
+   self.assertIn('fapi.binance.com',next(row['url'] for row in manifest['files'] if row['path'].startswith('raw/XAU/')))

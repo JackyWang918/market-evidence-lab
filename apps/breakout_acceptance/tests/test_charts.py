@@ -8,7 +8,7 @@ class ChartViewTests(TestCase):
         self.run = ResearchRun.objects.create(status='partial', cutoff_date=date(2026,10,14), payload={'coverage':[{'asset':'SOL','end':'2026-10-13','lag_calendar_days':0},{'asset':'XAU','end':'2026-09-30','lag_calendar_days':13}], 'summary':[{'asset':'SOL','scale':'D','split':'holdout','horizon_bars':20,'accepted':True,'n':8,'median_return_atr':1.2,'median_dd_atr':2.1}]})
         for asset in ('SOL','BNB','XAU'):
             for day in (1,2,13,14):
-                DailyCandle.objects.create(asset=asset,date=date(2026,10,day),open=100,high=110,low=90,close=105,source='test')
+                DailyCandle.objects.create(asset=asset,date=date(2026,10,day),open=100,high=110,low=90,close=105,source='binance_usdm_futures' if asset=='XAU' else 'test')
         self.event=ResearchEvent.objects.create(run=self.run, event_id='SOL-D-2026-10-02',asset='SOL',scale='D',known_at=datetime(2026,10,2,tzinfo=UTC),status='accepted',payload={'level':100,'atr_frozen':2},observations=[{'date':'2026-10-02','close_hold_fraction':1,'elapsed_calendar_days':1}],outcomes=[])
         self.other=ResearchEvent.objects.create(run=self.run,event_id='BNB-D-2026-10-02',asset='BNB',scale='D',known_at=datetime(2026,10,2,tzinfo=UTC),status='pending',payload={},observations=[],outcomes=[])
 
@@ -24,11 +24,11 @@ class ChartViewTests(TestCase):
         # Starts are neutral: don't leak a later acceptance label into the origin marker.
         self.assertNotIn('status',payload['events'][0])
 
-    def test_gold_defaults_to_week_and_shows_source_lag(self):
+    def test_gold_defaults_to_week_and_shows_futures_source(self):
         response=self.client.get(reverse('breakout_acceptance:charts'),{'asset':'XAU'})
         self.assertEqual(response.status_code,200)
         self.assertEqual(response.context['scale'],'W')
-        self.assertContains(response,'归档日线滞后 13 天')
+        self.assertContains(response,'Binance XAUUSDT 永续合约')
         self.assertEqual(self.client.get(reverse('breakout_acceptance:charts'),{'asset':'XAU','scale':'D'}).status_code,404)
 
     def test_missing_gold_source_is_explained_on_chart(self):

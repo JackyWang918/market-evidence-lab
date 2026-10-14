@@ -47,6 +47,7 @@ def configure(request):
 def data(request):
     asset=selected_asset(request)
     qs=DailyCandle.objects.filter(asset=asset)
+    if asset=='XAU':qs=qs.filter(source='binance_usdm_futures')
     page=Paginator(qs,100).get_page(request.GET.get('page'))
     return render(request,'breakout_acceptance/data.html',{'asset':asset,'assets':ASSETS,'page':page,'count':qs.count()})
 

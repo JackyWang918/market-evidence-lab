@@ -1,7 +1,7 @@
 from pathlib import Path
 
-# V1 immutable rules; this module does not import generic market datasets.
-import argparse, datetime as dt, hashlib, json, urllib.request, time, lzma, struct
+# V2 uses Binance spot for crypto and Binance USD-M futures for XAU.
+import argparse, datetime as dt, hashlib, json, os, urllib.request, time
 import numpy as np
 import pandas as pd
 ROOT=Path(__file__).resolve().parent
@@ -13,7 +13,9 @@ def fetch(url,path,offline=False):
     if offline: raise FileNotFoundError(path)
     for attempt in range(4):
         try:
-            with urllib.request.urlopen(url,timeout=35) as r: b=r.read()
+            proxy=os.environ.get('BREAKOUT_FUTURES_PROXY') if url.startswith('https://fapi.binance.com/') else None
+            opener=urllib.request.build_opener(urllib.request.ProxyHandler({'https':proxy})) if proxy else None
+            with (opener.open(url,timeout=35) if opener else urllib.request.urlopen(url,timeout=35)) as r: b=r.read()
             path.parent.mkdir(parents=True,exist_ok=True)
             temporary=path.with_suffix(path.suffix+'.tmp');temporary.write_bytes(b);temporary.replace(path)
             return b
@@ -24,13 +26,17 @@ def fetch(url,path,offline=False):
 def collect(end,offline=False,root=None):
     ROOT=Path(root) if root is not None else Path(__file__).resolve().parents[2]/"data"/"breakout_acceptance"
     manifest={'end_exclusive_utc':str(end),'retrieved_utc':dt.datetime.now(UTC).isoformat(),'files':[],'coverage':[],'missing_assets':[]}
-    datasets={}; quarantine=[]
+    datasets=[]
     for asset in ASSETS:
         rows=[]
-        if asset!='XAU':
+        symbol='XAUUSDT' if asset=='XAU' else f'{asset}USDT'
+        market='binance_usdm_futures' if asset=='XAU' else 'binance_spot'
+        endpoint='https://fapi.binance.com/fapi/v1/klines' if asset=='XAU' else 'https://data-api.binance.vision/api/v3/klines'
+        try:
             start=0; until=int(end.timestamp()*1000)-1
             while start<=until:
-                url=f'https://data-api.binance.vision/api/v3/klines?symbol={asset}USDT&interval=1d&timeZone=0&startTime={start}&endTime={until}&limit=1000'
+                timezone_arg='' if asset=='XAU' else '&timeZone=0'
+                url=f'{endpoint}?symbol={symbol}&interval=1d{timezone_arg}&startTime={start}&endTime={until}&limit=1000'
                 path=ROOT/'raw'/asset/f'{start}_{until}.json'
                 b=fetch(url,path,offline); page=json.loads(b)
                 manifest['files'].append({'path':str(path.relative_to(ROOT)),'url':url,'sha256':hashlib.sha256(b).hexdigest()})
@@ -43,30 +49,8 @@ def collect(end,offline=False,root=None):
                         rows.append([pd.to_datetime(stamp,unit='ms',utc=True),*map(float,r[1:5])])
                 start=int(page[-1][0])+86400000
                 if len(page)<1000: break
-        else:
-          try:
-            for year in range(1999,end.year+1):
-                if year==end.year and not (ROOT/'raw'/'gold'/f'{year}.bi5').exists():
-                    chunks=[(ROOT/'raw'/'gold'/f'{year}-{m:02d}-hour.bi5',pd.Timestamp(year=year,month=m+1,day=1,tz='UTC'),f'https://datafeed.dukascopy.com/datafeed/XAUUSD/{year}/{m:02d}/BID_candles_hour_1.bi5?x=5',True) for m in range(end.month-1)]
-                else:
-                    chunks=[(ROOT/'raw'/'gold'/f'{year}.bi5',pd.Timestamp(f'{year}-01-01',tz='UTC'),f'https://datafeed.dukascopy.com/datafeed/XAUUSD/{year}/BID_candles_day_1.bi5?x=5',False)]
-                hourrows=[]
-                for path,anchor,url,hourly in chunks:
-                    b=fetch(url,path,offline)
-                    manifest['files'].append({'path':str(path.relative_to(ROOT)),'url':url,'sha256':hashlib.sha256(b).hexdigest()})
-                    decoded=lzma.decompress(b); assert len(decoded)%24==0
-                    for sec,o,c,l,h,v in struct.iter_unpack('>5if',decoded):
-                        stamp=anchor+pd.Timedelta(seconds=sec)
-                        if stamp+pd.Timedelta(hours=1 if hourly else 24)<=end and v>0:
-                            if min(o,c,l,h)>0 and l<=min(o,c) and h>=max(o,c):
-                                (hourrows if hourly else rows).append([stamp,o/1000,h/1000,l/1000,c/1000])
-                            else: quarantine.append({'asset':'XAU','date':str(stamp),'open':o,'close':c,'low':l,'high':h})
-                if hourrows:
-                    hourlydf=pd.DataFrame(hourrows,columns=['date','open','high','low','close']).set_index('date').sort_index()
-                    d=hourlydf.resample('1D').agg({'open':'first','high':'max','low':'min','close':'last'}).dropna()
-                    rows.extend([[date,*row] for date,row in d.iterrows()])
-          except (OSError, TimeoutError) as exc:
-            manifest['missing_assets'].append({'asset':asset,'reason':f'{type(exc).__name__}: 黄金数据源暂时不可用'})
+        except (OSError, TimeoutError) as exc:
+            manifest['missing_assets'].append({'asset':asset,'reason':f'{type(exc).__name__}: Binance {symbol} 数据源暂时不可用'})
             print(asset,'source unavailable:',type(exc).__name__,flush=True)
             continue
         df=pd.DataFrame(rows,columns=['date','open','high','low','close']).set_index('date').sort_index()
@@ -74,18 +58,18 @@ def collect(end,offline=False,root=None):
         assert (df.low>0).all() and (df.high>=df[['open','close','low']].max(axis=1)).all() and (df.low<=df[['open','close']].min(axis=1)).all()
         gaps=df.index.to_series().diff().dt.days
         if asset!='XAU': assert (gaps.dropna()==1).all(),'crypto gaps'
-        manifest['coverage'].append({'asset':asset,'start':str(df.index.min().date()),'end':str(df.index.max().date()),'bars':len(df),'max_calendar_gap_days':int(gaps.max())})
-        df.attrs['invalid_dates']=[pd.Timestamp(q['date']) for q in quarantine] if asset=='XAU' else []
-        datasets[asset]=df
+        manifest['coverage'].append({'asset':asset,'symbol':symbol,'market':market,'start':str(df.index.min().date()),'end':str(df.index.max().date()),'bars':len(df),'max_calendar_gap_days':int(gaps.max())})
+        df.attrs['invalid_dates']=[]
+        datasets.append((asset,df))
         (ROOT/'data').mkdir(exist_ok=True); df.to_csv(ROOT/'data'/f'{asset}_daily.csv')
         print(asset,manifest['coverage'][-1],flush=True)
     if not datasets:
         raise ValueError('No asset data collected')
-    pd.DataFrame(quarantine,columns=['asset','date','open','close','low','high']).to_csv(ROOT/'data'/'quarantine.csv',index=False)
-    manifest['quarantined_rows']=len(quarantine)
-    manifest['xau_policy']='Completed year daily BID; completed current-year month hourly BID, aggregated UTC. Current month excluded; daily tracker has explicit source lag.'
+    pd.DataFrame(columns=['asset','date','open','close','low','high']).to_csv(ROOT/'data'/'quarantine.csv',index=False)
+    manifest['quarantined_rows']=0
+    manifest['xau_policy']='Binance USD-M XAUUSDT perpetual traded daily candles, UTC; available history starts at listing.'
     (ROOT/'data'/'manifest.json').write_text(json.dumps(manifest,indent=2))
-    return datasets
+    return dict(datasets)
 
 def aggregate(df,scale,end):
     if scale=='D': out=df.copy(); out['available']=out.index+pd.Timedelta(days=1); return out

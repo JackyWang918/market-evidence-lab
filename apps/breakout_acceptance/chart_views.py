@@ -33,6 +33,8 @@ def charts(request):
     events = ResearchEvent.objects.none()
     if latest and coverage:
         candles = DailyCandle.objects.filter(asset=asset, date__lt=latest.cutoff_date).order_by('date')
+        if asset == 'XAU':
+            candles = candles.filter(source='binance_usdm_futures')
         latest_date = candles.order_by('-date').values_list('date', flat=True).first()
         if latest_date and period != 'all':
             candles = candles.filter(date__gte=latest_date-timedelta(days=int(period)-1))

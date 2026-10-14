@@ -9,7 +9,7 @@ from django.utils import timezone
 from .models import ASSETS, DailyCandle, ResearchEvent, ResearchRun, ResearchSchedule
 from apps.scheduling.services import calculate_next_run_at
 
-VERSION = 'breakout_acceptance_v1'
+VERSION = 'breakout_acceptance_v2'
 
 def storage_root():
     return Path(settings.BASE_DIR) / 'data' / 'breakout_acceptance'
@@ -102,7 +102,7 @@ def execute_run(run_id, *, offline=False, heartbeat_callback=None):
             coverage.append(item)
         for asset, frame in datasets.items():
             for date, row in frame.iterrows():
-                candles.append(DailyCandle(asset=asset, date=date.date(), open=float(row.open), high=float(row.high), low=float(row.low), close=float(row.close), source='dukascopy_bid' if asset=='XAU' else 'binance_spot'))
+                candles.append(DailyCandle(asset=asset, date=date.date(), open=float(row.open), high=float(row.high), low=float(row.low), close=float(row.close), source='binance_usdm_futures' if asset=='XAU' else 'binance_spot'))
         payload={'version':VERSION, 'coverage':coverage, 'manifest':manifest,
                  'summary':_records(pd.read_csv(snapshot/'reports'/'summary.csv')),
                  'weekly_review':_records(pd.read_csv(snapshot/'reports'/'weekly_review.csv')),
